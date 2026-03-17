@@ -47,6 +47,7 @@ def load_bom(
     )
 
     components = []
+    seen: set[str] = set()
     for (group_id, artifact_id, classifier, type_pkg), dep in sorted(
         model.dep_mgmt.items()
     ):
@@ -60,10 +61,21 @@ def load_bom(
         if type_pkg not in ("jar", "bundle", "maven-plugin"):
             continue
 
+        # Skip classified artifacts (e.g., sources, javadoc, natives).
+        # We only want the primary artifact for each G:A.
+        if classifier:
+            continue
+
         version = dep.version
         if not version:
             _log.warning("Skipping %s:%s — no version", group_id, artifact_id)
             continue
+
+        # Deduplicate by G:A — keep the first entry seen.
+        ga = f"{group_id}:{artifact_id}"
+        if ga in seen:
+            continue
+        seen.add(ga)
 
         components.append(
             Component(

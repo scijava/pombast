@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
 from bombast.config._settings import VersionPinsConfig
 from bombast.core._component import Component
+
+# XML element names must start with a letter or underscore.
+_VALID_XML_NAME = re.compile(r"^[a-zA-Z_]")
 
 _SETTINGS_HEADER = """\
 <?xml version="1.0" encoding="UTF-8"?>
@@ -99,9 +103,11 @@ def generate_version_pins(
     if extra_properties:
         props.update(extra_properties)
 
-    # Build XML.
+    # Build XML, skipping invalid element names.
     lines = []
     for key in sorted(props):
+        if not _VALID_XML_NAME.match(key):
+            continue
         value = escape(props[key])
         lines.append(f"        <{key}>{value}</{key}>")
 
