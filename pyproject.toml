@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=77.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bombast"
+version = "0.1.0.dev0"
+description = "Validate that Bill-of-Materials components actually work together."
+license = "Unlicense"
+authors = [{name = "SciJava developers", email = "ctrueden@wisc.edu"}]
+readme = "README.md"
+keywords = ["bom", "maven", "integration-testing", "validation"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Testing",
+]
+
+requires-python = ">=3.10"
+dependencies = [
+  "jgo>=2.1.0",
+  "rich>=14.2.0",
+  "rich-click>=1.9.5",
+  "tomli>=2.0.0; python_version<'3.11'",
+]
+
+[dependency-groups]
+dev = [
+    "build",
+    "mypy",
+    "pytest",
+    "ruff",
+    "validate-pyproject[all]",
+]
+
+[project.scripts]
+bombast = "bombast.__main__:main"
+
+[project.urls]
+homepage = "https://github.com/apposed/bombast"
+source = "https://github.com/apposed/bombast"
+tracker = "https://github.com/apposed/bombast/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
+extend-exclude = ["bin", "build", "dist"]
+
+[tool.ruff.lint]
+extend-select = ["TC", "UP037"]
+extend-ignore = ["E203"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
