@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+        https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>test</groupId>
+    <artifactId>sample-bom</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>Sample BOM for Testing</name>
+
+    <properties>
+        <alpha.version>1.2.3</alpha.version>
+        <beta.version>4.5.6</beta.version>
+        <gamma.version>7.8.9</gamma.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.example</groupId>
+                <artifactId>alpha</artifactId>
+                <version>${alpha.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.example</groupId>
+                <artifactId>beta</artifactId>
+                <version>${beta.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.other</groupId>
+                <artifactId>gamma</artifactId>
+                <version>${gamma.version}</version>
+            </dependency>
+            <!-- pom-only dependency — should be skipped (not jar/bundle/maven-plugin) -->
+            <dependency>
+                <groupId>com.other</groupId>
+                <artifactId>parent-pom</artifactId>
+                <version>2.0.0</version>
+                <type>pom</type>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <scm>
+        <connection>scm:git:https://github.com/example/sample-bom</connection>
+        <tag>sample-bom-1.0.0</tag>
+        <url>https://github.com/example/sample-bom</url>
+    </scm>
+</project>

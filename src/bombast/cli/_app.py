@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 
 import rich_click as click
+from rich.console import Console
+from rich.table import Table
 
 from bombast import __version__
+from bombast.config._settings import BombastConfig, PipelineConfig
+from bombast.core._component import BuildStatus
+from bombast.core._pipeline import Pipeline
+
+console = Console()
 
 
 @click.command()
@@ -87,6 +96,77 @@ def cli(
 
     BOM is a Maven G:A:V coordinate or a local directory path.
     """
-    click.echo(f"bombast {__version__}")
-    click.echo(f"Validating BOM: {bom}")
-    # TODO: Wire up to Pipeline once implemented.
+    # Configure logging.
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+
+    # Load config file if provided.
+    bombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
+
+    # Build pipeline config.
+    pipeline_config = PipelineConfig(
+        bom=bom,
+        changes=list(change),
+        includes=list(include),
+        excludes=list(exclude),
+        repositories=list(repository),
+        output_dir=output_dir,
+        prune=prune,
+        force=force,
+        skip_build=skip_build,
+        verbose=verbose,
+        config=bombast_config,
+    )
+
+    console.print(f"[bold]bombast {__version__}[/bold]")
+    console.print(f"Validating BOM: [cyan]{bom}[/cyan]")
+
+    # Run the pipeline.
+    pipeline = Pipeline(pipeline_config)
+    report = pipeline.run()
+
+    # Print results table.
+    if report.results:
+        _print_results_table(report)
+
+    console.print()
+    console.print(report.summary())
+
+    # Exit with failure count (capped at 254, 255 reserved).
+    failures = len(report.failures) + len(report.errors)
+    sys.exit(min(failures, 254))
+
+
+def _print_results_table(report) -> None:
+    """Print a Rich table summarizing build results."""
+    table = Table(title="Build Results")
+    table.add_column("Component", style="cyan")
+    table.add_column("Status")
+    table.add_column("Duration", justify="right")
+    table.add_column("Note")
+
+    status_styles = {
+        BuildStatus.SUCCESS: "[green]SUCCESS[/green]",
+        BuildStatus.FAILURE: "[red]FAILURE[/red]",
+        BuildStatus.ERROR: "[red]ERROR[/red]",
+        BuildStatus.SKIPPED: "[yellow]SKIPPED[/yellow]",
+    }
+
+    for result in report.results:
+        duration = (
+            f"{result.duration_seconds:.1f}s"
+            if result.duration_seconds > 0
+            else "-"
+        )
+        note = result.skipped_reason or ""
+        table.add_row(
+            result.component.coordinate,
+            status_styles.get(result.status, str(result.status)),
+            duration,
+            note,
+        )
+
+    console.print(table)
