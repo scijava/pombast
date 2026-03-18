@@ -80,6 +80,12 @@ console = Console()
     is_flag=True,
     help="Skip binary compatibility testing (only rebuild from source).",
 )
+@click.option(
+    "--min-java",
+    type=int,
+    default=None,
+    help="Minimum Java version floor for all components (e.g., 11).",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 @click.version_option(version=__version__)
 @click.pass_context
@@ -96,6 +102,7 @@ def cli(
     force: bool,
     skip_build: bool,
     no_binary_test: bool,
+    min_java: int | None,
     verbose: bool,
 ) -> None:
     """Validate that BOM components actually work together.
@@ -113,8 +120,12 @@ def cli(
     bombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
 
     # Build pipeline config.
+    # CLI --min-java overrides config file.
+    effective_min_java = min_java or bombast_config.min_java_version
+
     pipeline_config = PipelineConfig(
         bom=bom,
+        min_java_version=effective_min_java,
         changes=list(change),
         includes=list(include),
         excludes=list(exclude),

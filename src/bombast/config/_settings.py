@@ -25,6 +25,7 @@ class BombastConfig:
     """Configuration loaded from a bombast.toml file."""
 
     filter: FilterConfig = field(default_factory=FilterConfig)
+    min_java_version: int | None = None
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
@@ -44,8 +45,11 @@ class BombastConfig:
 
         build_data = data.get("build", {})
 
+        min_java = build_data.get("min-java-version")
+
         return cls(
             filter=filter_config,
+            min_java_version=int(min_java) if min_java is not None else None,
             skip_tests=data.get("skip-tests", {}).get("components", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=build_data.get("properties", {}),
@@ -65,6 +69,7 @@ class PipelineConfig:
     """Full configuration for a pipeline run, combining CLI args and config file."""
 
     bom: str
+    min_java_version: int | None = None
     changes: list[str] = field(default_factory=list)
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)

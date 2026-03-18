@@ -127,6 +127,14 @@ class Pipeline:
                     from dataclasses import replace
                     component = replace(component, java_version=java_version)
 
+            # Apply minimum Java version floor.
+            min_java = self.config.min_java_version
+            if min_java is not None:
+                current = component.java_version or 0
+                if current < min_java:
+                    from dataclasses import replace
+                    component = replace(component, java_version=min_java)
+
             if not component.scm_url:
                 _log.warning("%s: no SCM URL — skipping", component.coordinate)
                 report.results.append(BuildResult(
