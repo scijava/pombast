@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from bombast.maven._pom_rewriter import rewrite_pom_versions
+from bombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 
 NS = "http://maven.apache.org/POM/4.0.0"
 
@@ -390,3 +390,79 @@ class TestInjectDependencyManagement:
             if d.find(f"{{{NS}}}artifactId").text == "bar"
         ][0]
         assert bar.find(f"{{{NS}}}version").text == "2.0.0"
+
+
+class TestPatchPomUrls:
+    def test_patches_http_to_https(self, tmp_path):
+        pom = _write_pom(tmp_path, """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <repositories>
+    <repository>
+      <id>imagej.public</id>
+      <url>http://maven.imagej.net/content/groups/public</url>
+    </repository>
+  </repositories>
+</project>
+""")
+        assert patch_pom_urls(pom) is True
+        text = pom.read_text()
+        assert "https://maven.imagej.net/content/groups/public" in text
+        assert "http://maven.imagej.net" not in text
+
+    def test_patches_xsd_url(self, tmp_path):
+        pom = _write_pom(tmp_path, """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+    http://maven.apache.org/xsd/maven-4.0.0.xsd">
+</project>
+""")
+        assert patch_pom_urls(pom) is True
+        text = pom.read_text()
+        assert "https://maven.apache.org/xsd/maven-4.0.0.xsd" in text
+        # The namespace URL should NOT be changed.
+        assert "http://maven.apache.org/POM/4.0.0" in text
+
+    def test_preserves_pom_namespace(self, tmp_path):
+        pom = _write_pom(tmp_path, """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+</project>
+""")
+        assert patch_pom_urls(pom) is False
+
+    def test_no_change_when_already_https(self, tmp_path):
+        pom = _write_pom(tmp_path, """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <repositories>
+    <repository>
+      <url>https://repo.maven.apache.org/maven2</url>
+    </repository>
+  </repositories>
+</project>
+""")
+        assert patch_pom_urls(pom) is False
+
+    def test_patches_multiple_urls(self, tmp_path):
+        pom = _write_pom(tmp_path, """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <repositories>
+    <repository>
+      <url>http://maven.imagej.net/content/groups/public</url>
+    </repository>
+    <repository>
+      <url>http://maven.scijava.org/content/groups/public</url>
+    </repository>
+  </repositories>
+</project>
+""")
+        assert patch_pom_urls(pom) is True
+        text = pom.read_text()
+        assert "https://maven.imagej.net" in text
+        assert "https://maven.scijava.org" in text
+        assert "http://maven.apache.org/POM/4.0.0" in text
+        assert text.count("http://") == 1  # only the namespace

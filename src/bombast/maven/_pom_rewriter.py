@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -10,6 +11,29 @@ _log = logging.getLogger(__name__)
 
 # Maven POM namespace.
 _NS = "http://maven.apache.org/POM/4.0.0"
+
+# Pattern matching http:// URLs, but NOT the POM namespace URI.
+_HTTP_URL = re.compile(r"http://(?!maven\.apache\.org/POM/)")
+
+
+def patch_pom_urls(pom_path: Path) -> bool:
+    """Upgrade http:// URLs to https:// in a POM file.
+
+    Modern Maven blocks plain http:// repository URLs.  This replaces
+    all http:// occurrences with https://, except the POM namespace URI
+    (http://maven.apache.org/POM/4.0.0) which is an XML identifier,
+    not a network URL.
+
+    Returns True if any replacements were made.
+    """
+    text = pom_path.read_text(encoding="UTF-8")
+    patched = _HTTP_URL.sub("https://", text)
+
+    if patched != text:
+        pom_path.write_text(patched, encoding="UTF-8")
+        _log.info("Patched http→https URLs in %s", pom_path.name)
+        return True
+    return False
 
 
 def rewrite_pom_versions(
