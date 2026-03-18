@@ -15,7 +15,6 @@ class TestBombastConfig:
         assert config.skip_tests == []
         assert config.remove_tests == {}
         assert config.build_properties == {}
-        assert config.version_pins.aliases == {}
 
     def test_load_from_toml(self, tmp_path):
         toml_path = tmp_path / "bombast.toml"
@@ -29,12 +28,6 @@ components = ["org.scijava:minimaven"]
 
 [remove-tests]
 "net.imagej:imagej-ops" = ["CachedOpEnvironmentTest.java"]
-
-[version-pins.aliases]
-"imagej1.version" = "net.imagej.ij.version"
-
-[version-pins.remove-duplicates]
-antlr = "org.antlr"
 
 [build.properties]
 "java.awt.headless" = "true"
@@ -50,10 +43,6 @@ java-version = 17
         assert config.remove_tests == {
             "net.imagej:imagej-ops": ["CachedOpEnvironmentTest.java"]
         }
-        assert config.version_pins.aliases == {
-            "imagej1.version": "net.imagej.ij.version"
-        }
-        assert config.version_pins.remove_duplicates == {"antlr": "org.antlr"}
         assert config.build_properties == {
             "java.awt.headless": "true",
             "enforcer.skip": "true",

@@ -21,19 +21,10 @@ class FilterConfig:
 
 
 @dataclass
-class VersionPinsConfig:
-    """Version pin overrides from config file."""
-
-    aliases: dict[str, str] = field(default_factory=dict)
-    remove_duplicates: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
 class BombastConfig:
     """Configuration loaded from a bombast.toml file."""
 
     filter: FilterConfig = field(default_factory=FilterConfig)
-    version_pins: VersionPinsConfig = field(default_factory=VersionPinsConfig)
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
@@ -51,17 +42,10 @@ class BombastConfig:
             excludes=filter_data.get("excludes", []),
         )
 
-        pins_data = data.get("version-pins", {})
-        pins_config = VersionPinsConfig(
-            aliases=pins_data.get("aliases", {}),
-            remove_duplicates=pins_data.get("remove-duplicates", {}),
-        )
-
         build_data = data.get("build", {})
 
         return cls(
             filter=filter_config,
-            version_pins=pins_config,
             skip_tests=data.get("skip-tests", {}).get("components", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=build_data.get("properties", {}),

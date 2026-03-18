@@ -23,7 +23,6 @@ from bombast.core._component import (
 from bombast.core._filter import ComponentFilter
 from bombast.maven._bom import load_bom
 from bombast.maven._builder import ComponentSource, MavenComponentBuilder
-from bombast.maven._pins import write_version_pins
 from bombast.maven._pom_rewriter import rewrite_pom_versions
 from bombast.maven._scm import resolve_scm
 from bombast.util._git import shallow_clone
@@ -43,8 +42,8 @@ class Pipeline:
         Steps:
         1. Load BOM and extract managed components
         2. Filter components by include/exclude patterns
-        3. Generate version pins (Maven settings.xml)
-        4. Resolve source code for each component
+        3. Resolve source code for each component
+        4. Rewrite POM to hardcode BOM dependency versions
         5. Build and test each component
         6. Generate validation report
         """
@@ -82,16 +81,6 @@ class Pipeline:
         # Apply skip-tests from config.
         skip_tests_set = set(self.config.config.skip_tests)
 
-        # Phase 3: Generate version pins.
-        pins_path = output_dir / "version-pins.xml"
-        write_version_pins(
-            pins_path,
-            all_components,
-            extra_properties=self.config.config.build_properties,
-            config=self.config.config.version_pins,
-        )
-        _log.info("Wrote version pins to %s", pins_path)
-
         if self.config.skip_build:
             _log.info("Skip-build mode: stopping after preparation")
             report.end_time = datetime.now(timezone.utc)
@@ -101,7 +90,6 @@ class Pipeline:
         ctx = bom_data.ctx
         repo_cache = RepoCache()
         builder = MavenComponentBuilder(
-            pins_path=pins_path,
             output_dir=output_dir,
             all_components=all_components,
             ctx=ctx,

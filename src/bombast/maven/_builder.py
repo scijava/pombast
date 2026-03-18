@@ -27,7 +27,7 @@ class ComponentSource:
 
 
 class MavenComponentBuilder:
-    """Builds and tests individual Maven components with version pins.
+    """Builds and tests individual Maven components.
 
     Handles per-component Java version selection, prior-success caching,
     and build log capture.  Optionally runs a binary-compatibility test
@@ -36,7 +36,6 @@ class MavenComponentBuilder:
 
     def __init__(
         self,
-        pins_path: Path,
         output_dir: Path,
         all_components: list[Component],
         ctx: MavenContext,
@@ -44,7 +43,6 @@ class MavenComponentBuilder:
         extra_properties: dict[str, str] | None = None,
         test_binary: bool = True,
     ) -> None:
-        self.pins_path = pins_path
         self.output_dir = output_dir
         self.all_components = all_components
         self.ctx = ctx
@@ -100,7 +98,7 @@ class MavenComponentBuilder:
             result = run_maven(
                 ["clean", "test"],
                 cwd=source.source_dir,
-                settings=self.pins_path,
+
                 java_home=java_home,
                 extra_properties=self.extra_properties,
                 log_path=source_log_path,
@@ -182,7 +180,7 @@ class MavenComponentBuilder:
             test_result = run_maven(
                 ["test"],
                 cwd=source.source_dir,
-                settings=self.pins_path,
+
                 java_home=java_home,
                 extra_properties={
                     **self.extra_properties,

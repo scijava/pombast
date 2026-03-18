@@ -13,18 +13,16 @@ def run_maven(
     args: list[str],
     *,
     cwd: Path,
-    settings: Path | None = None,
     java_home: Path | None = None,
     extra_properties: dict[str, str] | None = None,
     log_path: Path | None = None,
     timeout: int | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run a Maven command with optional settings and Java home.
+    """Run a Maven command.
 
     Args:
         args: Maven arguments (e.g., ["clean", "test"]).
         cwd: Working directory (the component source root).
-        settings: Path to Maven settings.xml (version-pins).
         java_home: Path to JAVA_HOME for this build.
         extra_properties: Additional -D properties to pass.
         log_path: If provided, write stdout+stderr to this file.
@@ -34,9 +32,6 @@ def run_maven(
         CompletedProcess with stdout/stderr.
     """
     cmd = ["mvn"]
-
-    if settings:
-        cmd.extend(["-s", str(settings)])
 
     cmd.extend(["-Denforcer.skip"])
 
