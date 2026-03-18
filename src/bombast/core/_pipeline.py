@@ -24,6 +24,7 @@ from bombast.core._filter import ComponentFilter
 from bombast.maven._bom import load_bom
 from bombast.maven._builder import ComponentSource, MavenComponentBuilder
 from bombast.maven._pins import write_version_pins
+from bombast.maven._pom_rewriter import rewrite_pom_versions
 from bombast.maven._scm import resolve_scm
 from bombast.util._git import shallow_clone
 
@@ -171,6 +172,11 @@ class Pipeline:
                     skipped_reason=f"clone failed: {e}",
                 ))
                 continue
+
+            # Rewrite POM to hardcode BOM dependency versions.
+            pom_file = source_dir / "pom.xml"
+            if pom_file.exists():
+                rewrite_pom_versions(pom_file, bom_data.dep_mgmt)
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
