@@ -75,6 +75,11 @@ console = Console()
     is_flag=True,
     help="Prepare everything but skip actual builds.",
 )
+@click.option(
+    "--no-binary-test",
+    is_flag=True,
+    help="Skip binary compatibility testing (only rebuild from source).",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 @click.version_option(version=__version__)
 @click.pass_context
@@ -90,6 +95,7 @@ def cli(
     prune: bool,
     force: bool,
     skip_build: bool,
+    no_binary_test: bool,
     verbose: bool,
 ) -> None:
     """Validate that BOM components actually work together.
@@ -117,6 +123,7 @@ def cli(
         prune=prune,
         force=force,
         skip_build=skip_build,
+        test_binary=not no_binary_test,
         verbose=verbose,
         config=bombast_config,
     )
@@ -144,7 +151,8 @@ def _print_results_table(report) -> None:
     """Print a Rich table summarizing build results."""
     table = Table(title="Build Results")
     table.add_column("Component", style="cyan")
-    table.add_column("Status")
+    table.add_column("Binary")
+    table.add_column("Source")
     table.add_column("Duration", justify="right")
     table.add_column("Note")
 
@@ -153,6 +161,7 @@ def _print_results_table(report) -> None:
         BuildStatus.FAILURE: "[red]FAILURE[/red]",
         BuildStatus.ERROR: "[red]ERROR[/red]",
         BuildStatus.SKIPPED: "[yellow]SKIPPED[/yellow]",
+        None: "-",
     }
 
     for result in report.results:
@@ -164,6 +173,7 @@ def _print_results_table(report) -> None:
         note = result.skipped_reason or ""
         table.add_row(
             result.component.coordinate,
+            status_styles.get(result.binary_status, "-"),
             status_styles.get(result.status, str(result.status)),
             duration,
             note,

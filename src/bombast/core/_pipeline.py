@@ -13,6 +13,7 @@ from jgo.maven import MavenContext
 from bombast.cache._repo import RepoCache
 from bombast.cache._success import SuccessCache
 from bombast.config._settings import PipelineConfig
+from bombast.maven._java_version import detect_build_java_version
 from bombast.core._component import (
     BuildResult,
     BuildStatus,
@@ -64,7 +65,8 @@ class Pipeline:
         # Phase 1: Load BOM.
         repositories = self._build_repo_map()
         _log.info("Loading BOM: %s", self.config.bom)
-        all_components = load_bom(self.config.bom, repositories=repositories)
+        bom_data = load_bom(self.config.bom, repositories=repositories)
+        all_components = bom_data.components
         _log.info("Found %d components in BOM", len(all_components))
 
         # Phase 2: Filter.
@@ -95,14 +97,16 @@ class Pipeline:
             return report
 
         # Phase 4 + 5: Resolve sources and build/test each component.
-        ctx = MavenContext(remote_repos=repositories)
+        ctx = bom_data.ctx
         repo_cache = RepoCache()
         builder = MavenComponentBuilder(
             pins_path=pins_path,
             output_dir=output_dir,
             all_components=all_components,
+            ctx=ctx,
             success_cache=SuccessCache(),
             extra_properties=self.config.config.build_properties,
+            test_binary=self.config.test_binary,
         )
 
         for component in included:
@@ -116,8 +120,23 @@ class Pipeline:
                 ))
                 continue
 
-            # Resolve SCM info.
+            # Resolve SCM info and detect build Java version.
             component = resolve_scm(component, ctx)
+
+            # Check for per-component Java version override from config.
+            comp_override = self.config.config.component_overrides.get(component.ga)
+            if comp_override and "java-version" in comp_override:
+                from dataclasses import replace
+                component = replace(
+                    component, java_version=int(comp_override["java-version"])
+                )
+            elif component.java_version is None:
+                java_version = detect_build_java_version(
+                    component, ctx, bom_dep_mgmt=bom_data.dep_mgmt
+                )
+                if java_version is not None:
+                    from dataclasses import replace
+                    component = replace(component, java_version=java_version)
 
             if not component.scm_url:
                 _log.warning("%s: no SCM URL — skipping", component.coordinate)

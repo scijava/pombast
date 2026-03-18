@@ -89,5 +89,6 @@ class PipelineConfig:
     prune: bool = False
     force: bool = False
     skip_build: bool = False
+    test_binary: bool = True
     verbose: bool = False
     config: BombastConfig = field(default_factory=BombastConfig.empty)

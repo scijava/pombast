@@ -12,11 +12,20 @@ from bombast.core._component import Component
 _log = logging.getLogger(__name__)
 
 
+class BomData:
+    """Result of loading a Maven BOM."""
+
+    def __init__(self, components: list[Component], dep_mgmt: dict, ctx: MavenContext):
+        self.components = components
+        self.dep_mgmt = dep_mgmt
+        self.ctx = ctx
+
+
 def load_bom(
     bom: str,
     *,
     repositories: dict[str, str] | None = None,
-) -> list[Component]:
+) -> BomData:
     """Load all managed dependencies from a Maven BOM.
 
     Args:
@@ -25,7 +34,7 @@ def load_bom(
         repositories: Additional remote Maven repositories (name → URL).
 
     Returns:
-        List of Component objects representing each managed dependency.
+        BomData with components, the BOM's dep_mgmt dict, and MavenContext.
     """
     remote_repos = {"central": "https://repo1.maven.org/maven2"}
     if repositories:
@@ -86,7 +95,7 @@ def load_bom(
         )
 
     _log.info("Extracted %d components from BOM", len(components))
-    return components
+    return BomData(components=components, dep_mgmt=model.dep_mgmt, ctx=ctx)
 
 
 def _load_local_bom(bom_dir: Path, ctx: MavenContext):

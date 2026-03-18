@@ -54,9 +54,15 @@ class BuildResult:
     log_path: Path | None = None
     duration_seconds: float = 0.0
     skipped_reason: str | None = None
+    binary_status: BuildStatus | None = None
+    binary_log_path: Path | None = None
 
     @property
     def ok(self) -> bool:
+        if self.binary_status is not None and self.binary_status not in (
+            BuildStatus.SUCCESS, BuildStatus.SKIPPED
+        ):
+            return False
         return self.status in (BuildStatus.SUCCESS, BuildStatus.SKIPPED)
 
 

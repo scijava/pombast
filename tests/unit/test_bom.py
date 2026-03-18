@@ -13,7 +13,7 @@ class TestLoadBom:
     def test_load_local_bom(self):
         """Load a BOM from a local directory with a pom.xml."""
         bom_dir = FIXTURES_DIR / "sample-bom"
-        components = load_bom(str(bom_dir))
+        components = load_bom(str(bom_dir)).components
 
         # Should find 3 jar-type managed dependencies
         assert len(components) == 3
@@ -31,7 +31,7 @@ class TestLoadBom:
     def test_load_local_bom_groups(self):
         """Verify correct group assignment."""
         bom_dir = FIXTURES_DIR / "sample-bom"
-        components = load_bom(str(bom_dir))
+        components = load_bom(str(bom_dir)).components
 
         by_name = {c.name: c for c in components}
         assert by_name["alpha"].group == "org.example"
@@ -40,7 +40,7 @@ class TestLoadBom:
     def test_load_local_bom_skips_pom_type(self):
         """Pom-only dependencies should be excluded."""
         bom_dir = FIXTURES_DIR / "sample-bom"
-        components = load_bom(str(bom_dir))
+        components = load_bom(str(bom_dir)).components
 
         names = [c.name for c in components]
         assert "parent-pom" not in names
@@ -58,7 +58,7 @@ class TestLoadBom:
     def test_scm_not_populated_by_default(self):
         """SCM info is not populated during BOM loading (done later in SCM resolution)."""
         bom_dir = FIXTURES_DIR / "sample-bom"
-        components = load_bom(str(bom_dir))
+        components = load_bom(str(bom_dir)).components
 
         for c in components:
             assert c.scm_url is None
