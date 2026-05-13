@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
+
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 if TYPE_CHECKING:
     from bombast.status._entry import StatusEntry
+
+
+_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build"]
+
+_env = Environment(
+    loader=PackageLoader("bombast.status", "templates"),
+    autoescape=select_autoescape(["html", "j2"]),
+    trim_blocks=False,
+    lstrip_blocks=False,
+)
 
 
 def _css_safe(s: str) -> str:
@@ -52,30 +64,62 @@ def _format_duration(seconds: int) -> str:
     return f"{days // 365}y"
 
 
-def _drift_cell(entry: StatusEntry) -> str:
+def _drift_data(entry: StatusEntry) -> dict[str, Any]:
+    """Build the data needed to render the Drift cell."""
     lv = entry.last_vetted
     lu = entry.last_updated
+    base_cls = _vetted_class(entry)
+
     if lv is None and lu is None:
-        return '<td class="unknown" sorttable_customkey="-1">???</td>'
+        return {"cls": "unknown", "sort_key": -1, "tooltip": "", "html": "???"}
+
     vetted_str = f"{lv:%Y-%m-%d %H:%M:%S}" if lv else "???"
     updated_str = f"{lu:%Y-%m-%d %H:%M:%S}" if lu else "???"
-    tooltip = f"vetted: {vetted_str}&#10;updated: {updated_str}"
-    cls = _vetted_class(entry)
+    tooltip = f"vetted: {vetted_str}\nupdated: {updated_str}"
+
     if lv is None or lu is None:
-        cls_attr = f' class="unknown {cls}"'.strip() if cls else ' class="unknown"'
-        return f'<td{cls_attr} sorttable_customkey="-1" title="{tooltip}">???</td>'
+        cls = ("unknown " + base_cls).strip() if base_cls else "unknown"
+        return {"cls": cls, "sort_key": -1, "tooltip": tooltip, "html": "???"}
+
     delta = int((lu - lv).total_seconds())
     if delta <= 0:
-        cls_attr = f' class="{cls}"' if cls else ""
-        return (
-            f'<td{cls_attr} sorttable_customkey="0" title="{tooltip}">'
-            f'<span class="drift-none">&mdash;</span></td>'
-        )
-    cls_attr = f' class="{cls}"' if cls else ""
-    return (
-        f'<td{cls_attr} sorttable_customkey="{delta}" title="{tooltip}">'
-        f"{_format_duration(delta)}</td>"
-    )
+        return {
+            "cls": base_cls,
+            "sort_key": 0,
+            "tooltip": tooltip,
+            "html": '<span class="drift-none">&mdash;</span>',
+        }
+    return {
+        "cls": base_cls,
+        "sort_key": delta,
+        "tooltip": tooltip,
+        "html": _format_duration(delta),
+    }
+
+
+def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
+    g = entry.component.group
+    a = entry.component.name
+    bom_v = entry.bom_version
+    latest_v = entry.latest_version or bom_v
+    action_key = {"Cut": 1, "Bump": 2, "None": 3}[entry.action]
+
+    return {
+        "group_css": _css_safe(g),
+        "artifact_css": _css_safe(a),
+        "bom_css": "bom-ok" if entry.bom_ok else "bom-behind",
+        "release_css": "release-ok" if entry.release_ok else "release-needed",
+        "artifact_label": f"{g} : {a}",
+        "project_url": entry.project_url or "",
+        "bom_version": bom_v,
+        "latest_version": latest_v,
+        "bom_link": _nexus_link(g, a, bom_v, nexus_base),
+        "latest_link": _nexus_link(g, a, latest_v, nexus_base),
+        "drift": _drift_data(entry),
+        "action": entry.action,
+        "action_key": action_key,
+        "badge_html": entry.badge_html or "<td>-</td>",
+    }
 
 
 def generate_html(
@@ -86,70 +130,11 @@ def generate_html(
     footer_html: str = "",
 ) -> str:
     """Return a complete HTML page with the status dashboard table."""
-    rows: list[str] = []
-
-    for entry in entries:
-        g = entry.component.group
-        a = entry.component.name
-        bom_v = entry.bom_version
-        latest_v = entry.latest_version or bom_v
-        url = entry.project_url or ""
-
-        bom_css = "bom-ok" if entry.bom_ok else "bom-behind"
-        rel_css = "release-ok" if entry.release_ok else "release-needed"
-        action_key = {"Cut": 1, "Bump": 2, "None": 3}[entry.action]
-
-        artifact_cell = (
-            f'<td><a href="{url}">{g} : {a}</a></td>' if url else f"<td>{g} : {a}</td>"
-        )
-
-        if bom_v == latest_v:
-            release_cell = f"<td>{_nexus_link(g, a, latest_v, nexus_base)}</td>"
-        else:
-            release_cell = (
-                f"<td>{_nexus_link(g, a, bom_v, nexus_base)} &rarr; "
-                f"{_nexus_link(g, a, latest_v, nexus_base)}</td>"
-            )
-
-        badge_cell = entry.badge_html or "<td>-</td>"
-
-        gc = _css_safe(g)
-        ac = _css_safe(a)
-        rows.append(
-            f'<tr class="g-{gc} a-{ac} {bom_css} {rel_css}">'
-            f"{artifact_cell}"
-            f"{release_cell}"
-            f"{_drift_cell(entry)}"
-            f'<td sorttable_customkey="{action_key}">{entry.action}</td>'
-            f"{badge_cell}"
-            f"</tr>"
-        )
-
-    rows_html = "\n".join(rows)
-    return f"""\
-<!DOCTYPE html>
-<html>
-<head>
-<title>{title}</title>
-<link type="text/css" rel="stylesheet" href="status.css">
-<link rel="icon" type="image/png" href="favicon.png">
-<script type="text/javascript" src="sorttable.js"></script>
-</head>
-<body>
-<script type="text/javascript" src="sortable-badges.js"></script>
-<!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
-<span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
-<table class="sortable">
-<tr>
-<th>Artifact</th>
-<th>Release</th>
-<th>Drift</th>
-<th>Action</th>
-<th>Build</th>
-</tr>
-{rows_html}
-</table>
-{footer_html}
-</body>
-</html>
-"""
+    rows = [_row_data(entry, nexus_base) for entry in entries]
+    template = _env.get_template("status.html.j2")
+    return template.render(
+        title=title,
+        columns=_COLUMNS,
+        rows=rows,
+        footer_html=footer_html,
+    )

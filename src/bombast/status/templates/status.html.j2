@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{ title }}</title>
+<link type="text/css" rel="stylesheet" href="status.css">
+<link rel="icon" type="image/png" href="favicon.png">
+<script type="text/javascript" src="sorttable.js"></script>
+</head>
+<body>
+<script type="text/javascript" src="sortable-badges.js"></script>
+<!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
+<span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
+<table class="sortable">
+<tr>
+{%- for column in columns %}
+<th>{{ column }}</th>
+{%- endfor %}
+</tr>
+{%- for row in rows %}
+<tr class="g-{{ row.group_css }} a-{{ row.artifact_css }} {{ row.bom_css }} {{ row.release_css }}">
+<td>
+{%- if row.project_url -%}
+<a href="{{ row.project_url }}">{{ row.artifact_label }}</a>
+{%- else -%}
+{{ row.artifact_label }}
+{%- endif -%}
+</td>
+<td>
+{%- if row.bom_version == row.latest_version -%}
+{{ row.latest_link | safe }}
+{%- else -%}
+{{ row.bom_link | safe }} &rarr; {{ row.latest_link | safe }}
+{%- endif -%}
+</td>
+<td{% if row.drift.cls %} class="{{ row.drift.cls }}"{% endif %} sorttable_customkey="{{ row.drift.sort_key }}"{% if row.drift.tooltip %} title="{{ row.drift.tooltip }}"{% endif %}>{{ row.drift.html | safe }}</td>
+<td sorttable_customkey="{{ row.action_key }}">{{ row.action }}</td>
+{{ row.badge_html | safe }}
+</tr>
+{%- endfor %}
+</table>
+{{ footer_html | safe }}
+</body>
+</html>
