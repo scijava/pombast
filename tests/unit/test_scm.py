@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from bombast.core._component import Component
 from bombast.maven._scm import _extract_scm_tag, _extract_scm_url, _guess_tag
 
 

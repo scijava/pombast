@@ -6,14 +6,17 @@ import logging
 import time
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
-
-from jgo.maven import MavenContext
+from typing import TYPE_CHECKING
 
 from bombast.cache._fingerprint import fingerprint
 from bombast.cache._success import SuccessCache
 from bombast.core._component import BuildResult, BuildStatus, Component
 from bombast.util._process import run_maven
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from jgo.maven import MavenContext
 
 _log = logging.getLogger(__name__)
 
@@ -73,7 +76,9 @@ class MavenComponentBuilder:
         # Check prior-success cache.
         if not self.success_cache.is_snapshot(component):
             if self.success_cache.has_prior_success(component, self._fingerprint):
-                _log.info("%s: skipping — prior success with same pins", component.coordinate)
+                _log.info(
+                    "%s: skipping — prior success with same pins", component.coordinate
+                )
                 return BuildResult(
                     component=component,
                     status=BuildStatus.SKIPPED,
@@ -98,7 +103,6 @@ class MavenComponentBuilder:
             result = run_maven(
                 ["clean", "test"],
                 cwd=source.source_dir,
-
                 java_home=java_home,
                 extra_properties=self.extra_properties,
                 log_path=source_log_path,
@@ -106,7 +110,9 @@ class MavenComponentBuilder:
             duration = time.monotonic() - start
 
             if result.returncode == 0:
-                _log.info("%s: source build SUCCESS (%.1fs)", component.coordinate, duration)
+                _log.info(
+                    "%s: source build SUCCESS (%.1fs)", component.coordinate, duration
+                )
                 self.success_cache.record_success(component, self._fingerprint)
                 return BuildResult(
                     component=component,
@@ -117,7 +123,9 @@ class MavenComponentBuilder:
                     binary_log_path=binary_log_path,
                 )
             else:
-                _log.warning("%s: source build FAILURE (%.1fs)", component.coordinate, duration)
+                _log.warning(
+                    "%s: source build FAILURE (%.1fs)", component.coordinate, duration
+                )
                 return BuildResult(
                     component=component,
                     status=BuildStatus.FAILURE,
@@ -180,7 +188,6 @@ class MavenComponentBuilder:
             test_result = run_maven(
                 ["test"],
                 cwd=source.source_dir,
-
                 java_home=java_home,
                 extra_properties={
                     **self.extra_properties,
@@ -204,11 +211,9 @@ class MavenComponentBuilder:
     def _resolve_jar(self, component: Component) -> Path | None:
         """Resolve a component's JAR via jgo, downloading if needed."""
         try:
-            maven_component = (
-                self.ctx
-                .project(component.group, component.name)
-                .at_version(component.version)
-            )
+            maven_component = self.ctx.project(
+                component.group, component.name
+            ).at_version(component.version)
             return maven_component.artifact().resolve()
         except Exception as e:
             _log.warning("%s: failed to resolve JAR — %s", component.coordinate, e)

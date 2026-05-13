@@ -53,9 +53,7 @@ class BombastConfig:
             skip_tests=data.get("skip-tests", {}).get("components", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=build_data.get("properties", {}),
-            component_overrides={
-                k: v for k, v in data.get("components", {}).items()
-            },
+            component_overrides={k: v for k, v in data.get("components", {}).items()},
         )
 
     @classmethod

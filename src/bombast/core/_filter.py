@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
+from typing import TYPE_CHECKING
 
-from ._component import Component
+if TYPE_CHECKING:
+    from ._component import Component
 
 
 @dataclass

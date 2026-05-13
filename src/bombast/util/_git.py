@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _log = logging.getLogger(__name__)
 
@@ -45,13 +48,18 @@ def shallow_clone(
     """
     _log.info("Shallow cloning %s@%s -> %s", repo, branch, dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    _run([
-        "git", "clone",
-        f"file://{repo}",
-        "--branch", branch,
-        "--depth", "1",
-        str(dest),
-    ])
+    _run(
+        [
+            "git",
+            "clone",
+            f"file://{repo}",
+            "--branch",
+            branch,
+            "--depth",
+            "1",
+            str(dest),
+        ]
+    )
 
 
 def has_ref(repo: Path, ref: str) -> bool:
@@ -105,7 +113,7 @@ def ls_remote_tags(url: str) -> list[str]:
         if len(parts) == 2:
             ref = parts[1]
             if ref.startswith("refs/tags/"):
-                tag = ref[len("refs/tags/"):]
+                tag = ref[len("refs/tags/") :]
                 # Skip ^{} dereferenced tag entries.
                 if not tag.endswith("^{}"):
                     tags.append(tag)
@@ -126,7 +134,7 @@ def default_branch(repo: Path) -> str:
         content = head_file.read_text().strip()
         # HEAD typically contains "ref: refs/heads/main"
         if content.startswith("ref: refs/heads/"):
-            return content[len("ref: refs/heads/"):]
+            return content[len("ref: refs/heads/") :]
     return "main"
 
 

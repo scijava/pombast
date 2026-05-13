@@ -4,28 +4,27 @@ from __future__ import annotations
 
 import logging
 import shutil
-import time
+from dataclasses import replace
 from datetime import datetime, timezone
-from pathlib import Path
-
-from jgo.maven import MavenContext
+from typing import TYPE_CHECKING
 
 from bombast.cache._repo import RepoCache
 from bombast.cache._success import SuccessCache
-from bombast.config._settings import PipelineConfig
-from bombast.maven._java_version import detect_build_java_version
 from bombast.core._component import (
     BuildResult,
     BuildStatus,
-    Component,
     ValidationReport,
 )
 from bombast.core._filter import ComponentFilter
 from bombast.maven._bom import load_bom
 from bombast.maven._builder import ComponentSource, MavenComponentBuilder
+from bombast.maven._java_version import detect_build_java_version
 from bombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 from bombast.maven._scm import resolve_scm
 from bombast.util._git import shallow_clone
+
+if TYPE_CHECKING:
+    from bombast.config._settings import PipelineConfig
 
 _log = logging.getLogger(__name__)
 
@@ -101,12 +100,16 @@ class Pipeline:
         for component in included:
             # Check if tests should be skipped for this component.
             if component.ga in skip_tests_set:
-                _log.info("%s: skipping (configured in skip-tests)", component.coordinate)
-                report.results.append(BuildResult(
-                    component=component,
-                    status=BuildStatus.SKIPPED,
-                    skipped_reason="configured skip",
-                ))
+                _log.info(
+                    "%s: skipping (configured in skip-tests)", component.coordinate
+                )
+                report.results.append(
+                    BuildResult(
+                        component=component,
+                        status=BuildStatus.SKIPPED,
+                        skipped_reason="configured skip",
+                    )
+                )
                 continue
 
             # Resolve SCM info and detect build Java version.
@@ -115,16 +118,17 @@ class Pipeline:
             # Check for per-component Java version override from config.
             comp_override = self.config.config.component_overrides.get(component.ga)
             if comp_override and "java-version" in comp_override:
-                from dataclasses import replace
-                component = replace(
-                    component, java_version=int(comp_override["java-version"])
-                )
+                java_ver = comp_override["java-version"]
+                if not isinstance(java_ver, (int, str)):
+                    raise ValueError(
+                        f"java-version must be int or str, got {type(java_ver).__name__!r}"
+                    )
+                component = replace(component, java_version=int(java_ver))
             elif component.java_version is None:
                 java_version = detect_build_java_version(
                     component, ctx, bom_dep_mgmt=bom_data.dep_mgmt
                 )
                 if java_version is not None:
-                    from dataclasses import replace
                     component = replace(component, java_version=java_version)
 
             # Apply minimum Java version floor.
@@ -132,16 +136,17 @@ class Pipeline:
             if min_java is not None:
                 current = component.java_version or 0
                 if current < min_java:
-                    from dataclasses import replace
                     component = replace(component, java_version=min_java)
 
             if not component.scm_url:
                 _log.warning("%s: no SCM URL — skipping", component.coordinate)
-                report.results.append(BuildResult(
-                    component=component,
-                    status=BuildStatus.ERROR,
-                    skipped_reason="no SCM URL",
-                ))
+                report.results.append(
+                    BuildResult(
+                        component=component,
+                        status=BuildStatus.ERROR,
+                        skipped_reason="no SCM URL",
+                    )
+                )
                 continue
 
             # Clone source.
@@ -150,11 +155,13 @@ class Pipeline:
 
             if not tag:
                 _log.warning("%s: no SCM tag — skipping", component.coordinate)
-                report.results.append(BuildResult(
-                    component=component,
-                    status=BuildStatus.ERROR,
-                    skipped_reason="no SCM tag",
-                ))
+                report.results.append(
+                    BuildResult(
+                        component=component,
+                        status=BuildStatus.ERROR,
+                        skipped_reason="no SCM tag",
+                    )
+                )
                 continue
 
             try:
@@ -162,11 +169,13 @@ class Pipeline:
                 shallow_clone(bare_repo, tag, source_dir)
             except Exception as e:
                 _log.error("%s: clone failed — %s", component.coordinate, e)
-                report.results.append(BuildResult(
-                    component=component,
-                    status=BuildStatus.ERROR,
-                    skipped_reason=f"clone failed: {e}",
-                ))
+                report.results.append(
+                    BuildResult(
+                        component=component,
+                        status=BuildStatus.ERROR,
+                        skipped_reason=f"clone failed: {e}",
+                    )
+                )
                 continue
 
             # Patch and rewrite POM.

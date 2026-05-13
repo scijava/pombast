@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from jgo.env._bytecode import detect_jar_java_version
 from jgo.maven import MavenContext, Model
 
-from bombast.core._component import Component
+if TYPE_CHECKING:
+    from bombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
@@ -37,9 +38,11 @@ def detect_build_java_version(
         detection fails.
     """
     try:
-        pom = ctx.project(component.group, component.name).at_version(
-            component.version
-        ).pom()
+        pom = (
+            ctx.project(component.group, component.name)
+            .at_version(component.version)
+            .pom()
+        )
         model = Model(pom, ctx, root_dep_mgmt=bom_dep_mgmt, lenient=True)
     except Exception:
         _log.warning(
@@ -82,13 +85,14 @@ def detect_build_java_version(
 
     # Also check the component's own JAR.
     try:
-        own_jar = ctx.project(component.group, component.name).at_version(
-            component.version
-        ).artifact().resolve()
+        own_jar = (
+            ctx.project(component.group, component.name)
+            .at_version(component.version)
+            .artifact()
+            .resolve()
+        )
         if own_jar and own_jar.exists():
-            own_version = detect_jar_java_version(
-                own_jar, round_to_lts_version=False
-            )
+            own_version = detect_jar_java_version(own_jar, round_to_lts_version=False)
             if own_version is not None:
                 if max_java_version is None or own_version > max_java_version:
                     max_java_version = own_version

@@ -27,7 +27,7 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
-  "jgo>=2.1.0",
+  "jgo @ git+https://github.com/apposed/jgo@2957e94ed6fef80ef33c42f4e796fa5f927d426b",
   "rich>=14.2.0",
   "rich-click>=1.9.5",
   "tomli>=2.0.0; python_version<'3.11'",
@@ -39,6 +39,7 @@ dev = [
     "mypy",
     "pytest",
     "ruff",
+    "types-requests",
     "validate-pyproject[all]",
 ]
 
@@ -75,3 +76,6 @@ extend-ignore = ["E203"]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.uv.sources]
+jgo = { git = "https://github.com/apposed/jgo", rev = "2957e94ed6fef80ef33c42f4e796fa5f927d426b" }

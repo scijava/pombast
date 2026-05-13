@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+from typing import TYPE_CHECKING
 
-from bombast.core._component import Component
+if TYPE_CHECKING:
+    from bombast.core._component import Component
 
 
 def fingerprint(components: list[Component]) -> str:

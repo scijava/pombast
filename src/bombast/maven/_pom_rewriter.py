@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 import re
 import xml.etree.ElementTree as ET
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _log = logging.getLogger(__name__)
 
@@ -64,9 +67,7 @@ def rewrite_pom_versions(
         the dep_mgmt injection is not counted).
     """
     ET.register_namespace("", _NS)
-    ET.register_namespace(
-        "xsi", "http://www.w3.org/2001/XMLSchema-instance"
-    )
+    ET.register_namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance")
 
     tree = ET.parse(pom_path)
     root = tree.getroot()
@@ -85,9 +86,7 @@ def rewrite_pom_versions(
     return count
 
 
-def _inject_dependency_management(
-    root: ET.Element, dep_mgmt: dict
-) -> bool:
+def _inject_dependency_management(root: ET.Element, dep_mgmt: dict) -> bool:
     """Inject the BOM's full dependency management into the POM.
 
     Replaces or creates the <dependencyManagement><dependencies>
@@ -164,9 +163,7 @@ def _inject_dependency_management(
             injected += 1
 
     if injected > 0:
-        _log.info(
-            "Injected %d dependency management entries into POM", injected
-        )
+        _log.info("Injected %d dependency management entries into POM", injected)
 
     return injected > 0
 
@@ -210,8 +207,14 @@ def _rewrite_dependency_versions(root: ET.Element, dep_mgmt: dict) -> int:
             # Determine classifier and type for lookup.
             classifier_elem = dep_elem.find(f"{{{_NS}}}classifier")
             type_elem = dep_elem.find(f"{{{_NS}}}type")
-            classifier = (classifier_elem.text or "").strip() if classifier_elem is not None else ""
-            dep_type = (type_elem.text or "").strip() if type_elem is not None else "jar"
+            classifier = (
+                (classifier_elem.text or "").strip()
+                if classifier_elem is not None
+                else ""
+            )
+            dep_type = (
+                (type_elem.text or "").strip() if type_elem is not None else "jar"
+            )
 
             # Look up in BOM dep_mgmt.
             key = (group_id, artifact_id, classifier, dep_type)
@@ -234,7 +237,10 @@ def _rewrite_dependency_versions(root: ET.Element, dep_mgmt: dict) -> int:
                 version_elem.text = bom_version
                 _log.debug(
                     "  %s:%s version %s → %s",
-                    group_id, artifact_id, old_version, bom_version,
+                    group_id,
+                    artifact_id,
+                    old_version,
+                    bom_version,
                 )
             else:
                 # Insert <version> after <artifactId>.
@@ -245,7 +251,9 @@ def _rewrite_dependency_versions(root: ET.Element, dep_mgmt: dict) -> int:
                 dep_elem.insert(idx + 1, version_elem)
                 _log.debug(
                     "  %s:%s version (added) → %s",
-                    group_id, artifact_id, bom_version,
+                    group_id,
+                    artifact_id,
+                    bom_version,
                 )
             count += 1
 

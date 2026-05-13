@@ -5,11 +5,14 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
-from jgo.maven import MavenContext
-
-from bombast.core._component import Component
 from bombast.util._git import ls_remote_tags
+
+if TYPE_CHECKING:
+    from jgo.maven import MavenContext
+
+    from bombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
@@ -28,9 +31,11 @@ def resolve_scm(
         ctx: Maven context for fetching POMs.
     """
     try:
-        pom = ctx.project(component.group, component.name).at_version(
-            component.version
-        ).pom()
+        pom = (
+            ctx.project(component.group, component.name)
+            .at_version(component.version)
+            .pom()
+        )
     except Exception:
         _log.warning("%s: failed to fetch POM", component.coordinate)
         return component

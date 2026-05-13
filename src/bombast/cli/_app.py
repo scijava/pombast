@@ -18,7 +18,13 @@ from bombast.core._pipeline import Pipeline
 console = Console()
 
 
-@click.command()
+@click.group()
+@click.version_option(version=__version__)
+def cli() -> None:
+    """bombast — validate and monitor Maven BOM components."""
+
+
+@cli.command("validate")
 @click.argument("bom")
 @click.option(
     "-c",
@@ -87,10 +93,7 @@ console = Console()
     help="Minimum Java version floor for all components (e.g., 11).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
-@click.version_option(version=__version__)
-@click.pass_context
-def cli(
-    ctx: click.Context,
+def validate_cmd(
     bom: str,
     change: tuple[str, ...],
     include: tuple[str, ...],
@@ -109,18 +112,13 @@ def cli(
 
     BOM is a Maven G:A:V coordinate or a local directory path.
     """
-    # Configure logging.
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    # Load config file if provided.
     bombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
-
-    # Build pipeline config.
-    # CLI --min-java overrides config file.
     effective_min_java = min_java or bombast_config.min_java_version
 
     pipeline_config = PipelineConfig(
@@ -142,24 +140,20 @@ def cli(
     console.print(f"[bold]bombast {__version__}[/bold]")
     console.print(f"Validating BOM: [cyan]{bom}[/cyan]")
 
-    # Run the pipeline.
     pipeline = Pipeline(pipeline_config)
     report = pipeline.run()
 
-    # Print results table.
     if report.results:
         _print_results_table(report)
 
     console.print()
     console.print(report.summary())
 
-    # Exit with failure count (capped at 254, 255 reserved).
     failures = len(report.failures) + len(report.errors)
     sys.exit(min(failures, 254))
 
 
 def _print_results_table(report) -> None:
-    """Print a Rich table summarizing build results."""
     table = Table(title="Build Results")
     table.add_column("Component", style="cyan")
     table.add_column("Binary")
@@ -177,9 +171,7 @@ def _print_results_table(report) -> None:
 
     for result in report.results:
         duration = (
-            f"{result.duration_seconds:.1f}s"
-            if result.duration_seconds > 0
-            else "-"
+            f"{result.duration_seconds:.1f}s" if result.duration_seconds > 0 else "-"
         )
         note = result.skipped_reason or ""
         table.add_row(

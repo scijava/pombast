@@ -4,8 +4,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from bombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 
 NS = "http://maven.apache.org/POM/4.0.0"
@@ -72,10 +70,12 @@ class TestRewriteDependencyVersions:
         # Find deps outside dependencyManagement.
         all_deps = list(root.iter(f"{{{NS}}}dependency"))
         bar = [d for d in all_deps if d.find(f"{{{NS}}}artifactId").text == "bar"]
+        assert len(bar) == 2
         # The one in <dependencies> (not in <dependencyManagement>) should be rewritten.
         deps_section = root.find(f"{{{NS}}}dependencies")
         bar_in_deps = [
-            d for d in deps_section.findall(f"{{{NS}}}dependency")
+            d
+            for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "bar"
         ][0]
         assert bar_in_deps.find(f"{{{NS}}}version").text == "2.0.0"
@@ -92,7 +92,8 @@ class TestRewriteDependencyVersions:
         root = _parse(pom)
         deps_section = root.find(f"{{{NS}}}dependencies")
         baz = [
-            d for d in deps_section.findall(f"{{{NS}}}dependency")
+            d
+            for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "baz"
         ][0]
         assert baz.find(f"{{{NS}}}version").text == "3.0.0"
@@ -108,7 +109,8 @@ class TestRewriteDependencyVersions:
         root = _parse(pom)
         deps_section = root.find(f"{{{NS}}}dependencies")
         unknown = [
-            d for d in deps_section.findall(f"{{{NS}}}dependency")
+            d
+            for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "not-in-bom"
         ][0]
         assert unknown.find(f"{{{NS}}}version").text == "9.9.9"
@@ -242,9 +244,7 @@ class TestInjectDependencyManagement:
         dm_deps = dm.findall(f"{{{NS}}}dependencies/{{{NS}}}dependency")
         assert len(dm_deps) == 2
 
-        by_artifact = {
-            d.find(f"{{{NS}}}artifactId").text: d for d in dm_deps
-        }
+        by_artifact = {d.find(f"{{{NS}}}artifactId").text: d for d in dm_deps}
         assert by_artifact["bar"].find(f"{{{NS}}}version").text == "2.0.0"
         assert by_artifact["baz"].find(f"{{{NS}}}version").text == "3.0.0"
 
@@ -330,10 +330,9 @@ class TestInjectDependencyManagement:
         dm_deps = root.findall(
             f"{{{NS}}}dependencyManagement/{{{NS}}}dependencies/{{{NS}}}dependency"
         )
-        plugin = [
-            d for d in dm_deps
-            if d.find(f"{{{NS}}}artifactId").text == "plugin"
-        ][0]
+        plugin = [d for d in dm_deps if d.find(f"{{{NS}}}artifactId").text == "plugin"][
+            0
+        ]
         assert plugin.find(f"{{{NS}}}type").text == "maven-plugin"
 
     def test_does_not_rewrite_dep_mgmt_deps_as_direct(self, tmp_path):
@@ -386,7 +385,8 @@ class TestInjectDependencyManagement:
         # Direct deps also rewritten.
         deps_section = root.find(f"{{{NS}}}dependencies")
         bar = [
-            d for d in deps_section.findall(f"{{{NS}}}dependency")
+            d
+            for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "bar"
         ][0]
         assert bar.find(f"{{{NS}}}version").text == "2.0.0"
@@ -394,7 +394,9 @@ class TestInjectDependencyManagement:
 
 class TestPatchPomUrls:
     def test_patches_http_to_https(self, tmp_path):
-        pom = _write_pom(tmp_path, """\
+        pom = _write_pom(
+            tmp_path,
+            """\
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
   <repositories>
@@ -404,20 +406,24 @@ class TestPatchPomUrls:
     </repository>
   </repositories>
 </project>
-""")
+""",
+        )
         assert patch_pom_urls(pom) is True
         text = pom.read_text()
         assert "https://maven.imagej.net/content/groups/public" in text
         assert "http://maven.imagej.net" not in text
 
     def test_patches_xsd_url(self, tmp_path):
-        pom = _write_pom(tmp_path, """\
+        pom = _write_pom(
+            tmp_path,
+            """\
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
     http://maven.apache.org/xsd/maven-4.0.0.xsd">
 </project>
-""")
+""",
+        )
         assert patch_pom_urls(pom) is True
         text = pom.read_text()
         assert "https://maven.apache.org/xsd/maven-4.0.0.xsd" in text
@@ -425,16 +431,21 @@ class TestPatchPomUrls:
         assert "http://maven.apache.org/POM/4.0.0" in text
 
     def test_preserves_pom_namespace(self, tmp_path):
-        pom = _write_pom(tmp_path, """\
+        pom = _write_pom(
+            tmp_path,
+            """\
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
 </project>
-""")
+""",
+        )
         assert patch_pom_urls(pom) is False
 
     def test_no_change_when_already_https(self, tmp_path):
-        pom = _write_pom(tmp_path, """\
+        pom = _write_pom(
+            tmp_path,
+            """\
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
   <repositories>
@@ -443,11 +454,14 @@ class TestPatchPomUrls:
     </repository>
   </repositories>
 </project>
-""")
+""",
+        )
         assert patch_pom_urls(pom) is False
 
     def test_patches_multiple_urls(self, tmp_path):
-        pom = _write_pom(tmp_path, """\
+        pom = _write_pom(
+            tmp_path,
+            """\
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <repositories>
@@ -459,7 +473,8 @@ class TestPatchPomUrls:
     </repository>
   </repositories>
 </project>
-""")
+""",
+        )
         assert patch_pom_urls(pom) is True
         text = pom.read_text()
         assert "https://maven.imagej.net" in text

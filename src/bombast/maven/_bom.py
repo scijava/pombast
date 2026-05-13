@@ -36,9 +36,8 @@ def load_bom(
     Returns:
         BomData with components, the BOM's dep_mgmt dict, and MavenContext.
     """
-    remote_repos = {"central": "https://repo1.maven.org/maven2"}
-    if repositories:
-        remote_repos.update(repositories)
+    remote_repos = dict(repositories) if repositories else {}
+    remote_repos.setdefault("central", "https://repo1.maven.org/maven2")
 
     ctx = MavenContext(remote_repos=remote_repos)
 
@@ -51,9 +50,7 @@ def load_bom(
         raise FileNotFoundError(f"Not a directory and not a G:A:V coordinate: {bom}")
 
     model = Model(pom, ctx, lenient=True)
-    _log.info(
-        "Loaded BOM with %d managed dependencies", len(model.dep_mgmt)
-    )
+    _log.info("Loaded BOM with %d managed dependencies", len(model.dep_mgmt))
 
     components = []
     seen: set[str] = set()

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -60,7 +63,8 @@ class BuildResult:
     @property
     def ok(self) -> bool:
         if self.binary_status is not None and self.binary_status not in (
-            BuildStatus.SUCCESS, BuildStatus.SKIPPED
+            BuildStatus.SUCCESS,
+            BuildStatus.SKIPPED,
         ):
             return False
         return self.status in (BuildStatus.SUCCESS, BuildStatus.SKIPPED)

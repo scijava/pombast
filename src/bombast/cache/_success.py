@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from bombast.core._component import Component
+if TYPE_CHECKING:
+    from bombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
