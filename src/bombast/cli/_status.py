@@ -52,7 +52,7 @@ console = Console()
     "-r",
     "--repository",
     multiple=True,
-    help="Additional remote Maven repository URL (repeatable).",
+    help="Additional remote Maven repository URL (repeatable). Optionally prefix with a name: name=URL.",
 )
 @click.option(
     "--rules",
@@ -149,7 +149,13 @@ def status_cmd(
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
     # User-specified repos come first; load_bom appends central as the last resort.
-    repos = {f"repo{i}": url for i, url in enumerate(repository)}
+    repos = {}
+    for i, spec in enumerate(repository):
+        name, sep, url = spec.partition("=")
+        if sep:
+            repos[name] = url
+        else:
+            repos[f"repo{i}"] = spec
 
     bom_data = load_bom(bom, repositories=repos)
     console.print(f"Loaded [bold]{len(bom_data.components)}[/bold] components.")
