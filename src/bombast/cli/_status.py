@@ -20,6 +20,7 @@ from rich.table import Table
 from bombast.core._filter import ComponentFilter
 from bombast.maven._bom import load_bom
 from bombast.maven._rules import RulesXML
+from bombast.status._drift import drift_text
 from bombast.status._html import generate_html
 from bombast.status._query import (
     DEFAULT_MAX_AGE,
@@ -229,27 +230,32 @@ def status_cmd(
 def _print_status_table(entries: list[StatusEntry]) -> None:
     table = Table(title="BOM Status", show_lines=False)
     table.add_column("Component", style="cyan", no_wrap=True)
-    table.add_column("BOM version", justify="right")
-    table.add_column("Latest", justify="right")
-    table.add_column("BOM", justify="center")
-    table.add_column("Rel", justify="center")
+    table.add_column("Release", justify="right")
+    table.add_column("Drift", justify="right")
     table.add_column("Action", justify="left")
 
     for e in entries:
-        bom_ok = "[green]✓[/green]" if e.bom_ok else "[red]✗[/red]"
-        rel_ok = "[green]✓[/green]" if e.release_ok else "[red]✗[/red]"
+        latest = e.latest_version or e.bom_version
+        if latest == e.bom_version:
+            release_str = e.bom_version
+        else:
+            release_str = f"{e.bom_version} → {latest}"
+        drift_str = drift_text(e)
+        if drift_str == "—":
+            drift_cell = "[dim]—[/dim]"
+        elif drift_str == "???":
+            drift_cell = "[dim]???[/dim]"
+        else:
+            drift_cell = drift_str
         action_str = {
             "Cut": "[red]Cut[/red]",
             "Bump": "[yellow]Bump[/yellow]",
             "None": "[dim]—[/dim]",
         }[e.action]
-        latest = e.latest_version or "[dim]?[/dim]"
         table.add_row(
             f"{e.component.group}:{e.component.name}",
-            e.bom_version,
-            latest,
-            bom_ok,
-            rel_ok,
+            release_str,
+            drift_cell,
             action_str,
         )
 
