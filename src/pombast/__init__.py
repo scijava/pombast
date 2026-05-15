@@ -1,7 +1,7 @@
 """
-Bombast: Validate that Bill-of-Materials components actually work together.
+Pombast: Validate that Bill-of-Materials components actually work together.
 
-Bombast takes a Maven BOM (Bill of Materials) and verifies that all managed
+Pombast takes a Maven BOM (Bill of Materials) and verifies that all managed
 components build and pass tests when used together at the declared versions.
 
 Quick Start

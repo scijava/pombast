@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from pombast import __version__
-from pombast.config._settings import BombastConfig, PipelineConfig
+from pombast.config._settings import PipelineConfig, PombastConfig
 from pombast.core._component import BuildStatus
 from pombast.core._pipeline import Pipeline
 
@@ -118,7 +118,7 @@ def validate_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    pombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
+    pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
     effective_min_java = min_java or pombast_config.min_java_version
 
     pipeline_config = PipelineConfig(

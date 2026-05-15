@@ -21,7 +21,7 @@ class FilterConfig:
 
 
 @dataclass
-class BombastConfig:
+class PombastConfig:
     """Configuration loaded from a pombast.toml file."""
 
     filter: FilterConfig = field(default_factory=FilterConfig)
@@ -32,7 +32,7 @@ class BombastConfig:
     component_overrides: dict[str, dict[str, object]] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, path: Path) -> BombastConfig:
+    def load(cls, path: Path) -> PombastConfig:
         """Load configuration from a pombast.toml file."""
         with open(path, "rb") as f:
             data = tomllib.load(f)
@@ -57,7 +57,7 @@ class BombastConfig:
         )
 
     @classmethod
-    def empty(cls) -> BombastConfig:
+    def empty(cls) -> PombastConfig:
         """Return an empty configuration with all defaults."""
         return cls()
 
@@ -78,4 +78,4 @@ class PipelineConfig:
     skip_build: bool = False
     test_binary: bool = True
     verbose: bool = False
-    config: BombastConfig = field(default_factory=BombastConfig.empty)
+    config: PombastConfig = field(default_factory=PombastConfig.empty)

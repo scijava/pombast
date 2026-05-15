@@ -8,11 +8,11 @@
 
 > **Pre-alpha. Not yet suitable for general use.**
 >
-> Bombast is under active development and breaking changes are expected.
+> Pombast is under active development and breaking changes are expected.
 > APIs, CLI options, configuration format, and caching behavior may all
 > change without notice until a stable 1.0 release.
 >
-> **Intended trajectory:** Bombast is being built as a principled replacement
+> **Intended trajectory:** Pombast is being built as a principled replacement
 > for the [pom-scijava](https://github.com/scijava/pom-scijava) *mega-melt*,
 > the ad-hoc shell-script process that validates managed components before
 > each pom-scijava release. The goal is to make BOM validation reproducible,
@@ -157,7 +157,7 @@ for result in report.failures:
 
 ## How POM rewriting works
 
-Bombast uses a two-pronged approach to enforce BOM versions regardless of what
+Pombast uses a two-pronged approach to enforce BOM versions regardless of what
 a component's own POM declares:
 
 1. **Inject dependency management** — the full BOM `<dependencyManagement>` is
@@ -175,7 +175,7 @@ compatible versions through its own resolution logic.
 
 ## Caching
 
-Bombast caches two things under `~/.cache/pombast/`:
+Pombast caches two things under `~/.cache/pombast/`:
 
 - **`repos/`** — bare Git clones of component repositories, reused across runs.
 - **`success/`** — fingerprints of successful builds. If a component's BOM

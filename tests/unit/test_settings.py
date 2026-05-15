@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from pombast.config._settings import BombastConfig, PipelineConfig
+from pombast.config._settings import PipelineConfig, PombastConfig
 
 
-class TestBombastConfig:
+class TestPombastConfig:
     def test_empty_config(self):
-        config = BombastConfig.empty()
+        config = PombastConfig.empty()
         assert config.filter.includes == []
         assert config.filter.excludes == []
         assert config.skip_tests == []
@@ -36,7 +36,7 @@ components = ["org.scijava:minimaven"]
 [components."sc.fiji:SNT"]
 java-version = 17
 """)
-        config = BombastConfig.load(toml_path)
+        config = PombastConfig.load(toml_path)
         assert config.filter.includes == ["org.scijava:*", "net.imagej:*"]
         assert config.filter.excludes == ["net.imagej:ij"]
         assert config.skip_tests == ["org.scijava:minimaven"]
@@ -54,13 +54,13 @@ java-version = 17
     def test_load_minimal_toml(self, tmp_path):
         toml_path = tmp_path / "pombast.toml"
         toml_path.write_text("")
-        config = BombastConfig.load(toml_path)
+        config = PombastConfig.load(toml_path)
         assert config.filter.includes == []
         assert config.skip_tests == []
 
     def test_load_missing_file(self, tmp_path):
         with pytest.raises(FileNotFoundError):
-            BombastConfig.load(tmp_path / "nonexistent.toml")
+            PombastConfig.load(tmp_path / "nonexistent.toml")
 
 
 class TestPipelineConfig:
