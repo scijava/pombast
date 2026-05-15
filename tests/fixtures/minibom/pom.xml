@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.scijava</groupId>
+		<artifactId>pom-scijava-base</artifactId>
+		<version>22.0.0</version>
+		<relativePath />
+	</parent>
+
+	<artifactId>pombast-test-bom-good</artifactId>
+	<version>0-SNAPSHOT</version>
+	<packaging>pom</packaging>
+
+	<name>Pombast Test BOM: Good</name>
+	<description>BOM for testing pombast's validate subcommand.</description>
+	<url>https://scijava.org/</url>
+	<inceptionYear>2026</inceptionYear>
+	<organization>
+		<name>SciJava</name>
+		<url>https://scijava.org/</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>Unlicense</name>
+			<url>https://unlicense.org/</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<id>ctrueden</id>
+			<name>Curtis Rueden</name>
+			<url>https://imagej.net/people/ctrueden</url>
+			<roles>
+				<role>founder</role>
+				<role>lead</role>
+				<role>debugger</role>
+				<role>reviewer</role>
+				<role>maintainer</role>
+			</roles>
+		</developer>
+	</developers>
+	<contributors>
+		<contributor>
+			<name>None</name>
+		</contributor>
+	</contributors>
+
+	<mailingLists>
+		<mailingList>
+			<name>None</name>
+		</mailingList>
+	</mailingLists>
+
+	<scm>
+		<connection>None</connection>
+	</scm>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/scijava/pombast/issues</url>
+	</issueManagement>
+	<ciManagement>
+		<system>GitHub Actions</system>
+		<url>https://github.com/scijava/pombast/actions</url>
+	</ciManagement>
+
+	<properties>
+		<license.licenseName>Unlicense</license.licenseName>
+		<license.copyrightOwners>N/A</license.copyrightOwners>
+
+		<!-- App Launcher - https://github.com/scijava/app-launcher -->
+		<app-launcher.version>2.3.1</app-launcher.version>
+		<org.scijava.app-launcher.version>${app-launcher.version}</org.scijava.app-launcher.version>
+
+		<!-- Parsington - https://github.com/scijava/parsington -->
+		<parsington.version>3.1.0</parsington.version>
+		<org.scijava.parsington.version>${parsington.version}</org.scijava.parsington.version>
+
+		<!-- SciJava Common - https://github.com/scijava/scijava-common -->
+		<scijava-common.version>2.99.2</scijava-common.version>
+		<org.scijava.scijava-common.version>${scijava-common.version}</org.scijava.scijava-common.version>
+
+		<!-- SciJava Desktop - https://github.com/scijava/scijava-desktop -->
+		<scijava-desktop.version>1.0.0</scijava-desktop.version>
+		<org.scijava.scijava-desktop.version>${scijava-desktop.version}</org.scijava.scijava-desktop.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<!-- App Launcher - https://github.com/scijava/app-launcher -->
+			<dependency>
+				<groupId>org.scijava</groupId>
+				<artifactId>app-launcher</artifactId>
+				<version>${org.scijava.app-launcher.version}</version>
+			</dependency>
+
+			<!-- Parsington - https://github.com/scijava/parsington -->
+			<dependency>
+				<groupId>org.scijava</groupId>
+				<artifactId>parsington</artifactId>
+				<version>${org.scijava.parsington.version}</version>
+			</dependency>
+
+			<!-- SciJava Common - https://github.com/scijava/scijava-common -->
+			<dependency>
+				<groupId>org.scijava</groupId>
+				<artifactId>scijava-common</artifactId>
+				<version>${org.scijava.scijava-common.version}</version>
+			</dependency>
+
+			<!-- SciJava Desktop - https://github.com/scijava/scijava-desktop -->
+			<dependency>
+				<groupId>org.scijava</groupId>
+				<artifactId>scijava-desktop</artifactId>
+				<version>${org.scijava.scijava-desktop.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+</project>
