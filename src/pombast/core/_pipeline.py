@@ -29,6 +29,17 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 
+class _VersionOverride:
+    """Proxy for a jgo dep object that overrides its version attribute."""
+
+    def __init__(self, dep, version: str) -> None:
+        self._dep = dep
+        self.version = version
+
+    def __getattr__(self, name: str):
+        return getattr(self._dep, name)
+
+
 class Pipeline:
     """Orchestrates the full BOM validation workflow."""
 
@@ -67,6 +78,9 @@ class Pipeline:
         bom_data = load_bom(self.config.bom, repositories=repositories)
         all_components = bom_data.components
         _log.info("Found %d components in BOM", len(all_components))
+
+        # Apply --change version overrides.
+        dep_mgmt = self._apply_changes(bom_data.dep_mgmt)
 
         # Phase 2: Filter.
         component_filter = self._build_filter()
@@ -126,7 +140,7 @@ class Pipeline:
                 component = replace(component, java_version=int(java_ver))
             elif component.java_version is None:
                 java_version = detect_build_java_version(
-                    component, ctx, bom_dep_mgmt=bom_data.dep_mgmt
+                    component, ctx, bom_dep_mgmt=dep_mgmt
                 )
                 if java_version is not None:
                     component = replace(component, java_version=java_version)
@@ -182,7 +196,7 @@ class Pipeline:
             pom_file = source_dir / "pom.xml"
             if pom_file.exists():
                 patch_pom_urls(pom_file)
-                rewrite_pom_versions(pom_file, bom_data.dep_mgmt)
+                rewrite_pom_versions(pom_file, dep_mgmt)
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
@@ -191,6 +205,26 @@ class Pipeline:
 
         report.end_time = datetime.now(timezone.utc)
         return report
+
+    def _apply_changes(self, dep_mgmt: dict) -> dict:
+        """Return a copy of dep_mgmt with --change version overrides applied."""
+        if not self.config.changes:
+            return dep_mgmt
+        result = dict(dep_mgmt)
+        for change in self.config.changes:
+            parts = change.split(":")
+            if len(parts) < 3:
+                _log.warning("Invalid change spec (expected G:A:V): %r", change)
+                continue
+            group_id, artifact_id, version = parts[0], parts[1], ":".join(parts[2:])
+            matched = False
+            for key in list(result):
+                if key[0] == group_id and key[1] == artifact_id:
+                    result[key] = _VersionOverride(result[key], version)
+                    matched = True
+            if not matched:
+                _log.warning("Change %r: no matching entry in BOM dep_mgmt", change)
+        return result
 
     def _build_filter(self) -> ComponentFilter:
         """Build a ComponentFilter from CLI args and config file."""
