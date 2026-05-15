@@ -22,7 +22,7 @@ class FilterConfig:
 
 @dataclass
 class BombastConfig:
-    """Configuration loaded from a bombast.toml file."""
+    """Configuration loaded from a pombast.toml file."""
 
     filter: FilterConfig = field(default_factory=FilterConfig)
     min_java_version: int | None = None
@@ -33,7 +33,7 @@ class BombastConfig:
 
     @classmethod
     def load(cls, path: Path) -> BombastConfig:
-        """Load configuration from a bombast.toml file."""
+        """Load configuration from a pombast.toml file."""
         with open(path, "rb") as f:
             data = tomllib.load(f)
 
@@ -72,7 +72,7 @@ class PipelineConfig:
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
     repositories: list[str] = field(default_factory=list)
-    output_dir: Path = field(default_factory=lambda: Path("bombast-output"))
+    output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
     prune: bool = False
     force: bool = False
     skip_build: bool = False

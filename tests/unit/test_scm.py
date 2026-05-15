@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from bombast.maven._scm import _extract_scm_tag, _extract_scm_url, _guess_tag
+from pombast.maven._scm import _extract_scm_tag, _extract_scm_url, _guess_tag
 
 
 class TestExtractScmUrl:
@@ -56,7 +56,7 @@ class TestExtractScmTag:
 
 
 class TestGuessTag:
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_artifact_version_tag(self, mock_ls):
         mock_ls.return_value = [
             "scijava-common-2.98.0",
@@ -66,32 +66,32 @@ class TestGuessTag:
 
         assert _guess_tag("url", "scijava-common", "2.99.0") == "scijava-common-2.99.0"
 
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_version_only_tag(self, mock_ls):
         mock_ls.return_value = ["1.0.0", "2.0.0", "3.0.0"]
 
         assert _guess_tag("url", "some-artifact", "2.0.0") == "2.0.0"
 
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_v_prefixed_tag(self, mock_ls):
         mock_ls.return_value = ["v1.0.0", "v2.0.0", "v3.0.0"]
 
         assert _guess_tag("url", "some-artifact", "2.0.0") == "v2.0.0"
 
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_preference_order(self, mock_ls):
         """artifactId-version is preferred over bare version."""
         mock_ls.return_value = ["my-lib-1.0", "1.0", "v1.0"]
 
         assert _guess_tag("url", "my-lib", "1.0") == "my-lib-1.0"
 
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_no_matching_tag(self, mock_ls):
         mock_ls.return_value = ["unrelated-1.0", "other-2.0"]
 
         assert _guess_tag("url", "my-lib", "3.0") is None
 
-    @patch("bombast.maven._scm.ls_remote_tags")
+    @patch("pombast.maven._scm.ls_remote_tags")
     def test_no_tags_at_all(self, mock_ls):
         mock_ls.return_value = []
 

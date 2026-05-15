@@ -6,7 +6,7 @@ import hashlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 
 def fingerprint(components: list[Component]) -> str:

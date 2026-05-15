@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bombast.status._entry import StatusEntry
+    from pombast.status._entry import StatusEntry
 
 
 def format_duration(seconds: int) -> str:

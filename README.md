@@ -1,4 +1,4 @@
-# bombast
+# pombast
 
 **Validate that Maven Bill-of-Materials (BOM) components actually work together.**
 
@@ -23,7 +23,7 @@
 
 ## What it does
 
-Given a Maven BOM (Bill of Materials) coordinate, bombast:
+Given a Maven BOM (Bill of Materials) coordinate, pombast:
 
 1. Loads all managed components from the BOM.
 2. Resolves source code for each component via SCM metadata in the POM.
@@ -46,7 +46,7 @@ consistent — before that BOM is shipped.
 - Maven (`mvn`) on `PATH`
 - Git on `PATH`
 
-System Java is not required—bombast auto-detects and downloads the right
+System Java is not required—pombast auto-detects and downloads the right
 version of Java per component via [jgo](https://github.com/scijava/jgo).
 
 ---
@@ -56,13 +56,13 @@ version of Java per component via [jgo](https://github.com/scijava/jgo).
 As a command-line tool:
 
 ```bash
-uv tool install git+https://github.com/scijava/bombast
+uv tool install git+https://github.com/scijava/pombast
 ```
 
 As a dependency:
 
 ```bash
-uv add git+https://github.com/scijava/bombast
+uv add git+https://github.com/scijava/pombast
 ```
 
 ---
@@ -71,16 +71,16 @@ uv add git+https://github.com/scijava/bombast
 
 ```bash
 # Validate all components in pom-scijava 37.0.0
-bombast org.scijava:pom-scijava:37.0.0
+pombast org.scijava:pom-scijava:37.0.0
 
 # Validate only scijava-group artifacts
-bombast -i "org.scijava:*" org.scijava:pom-scijava:37.0.0
+pombast -i "org.scijava:*" org.scijava:pom-scijava:37.0.0
 
 # Inject a candidate version change, and validate only affected components
-bombast -c "org.scijava:scijava-common:2.100.0" -p org.scijava:pom-scijava:37.0.0
+pombast -c "org.scijava:scijava-common:2.100.0" -p org.scijava:pom-scijava:37.0.0
 
 # Validate a local BOM under development
-bombast /path/to/local/bom
+pombast /path/to/local/bom
 ```
 
 ---
@@ -88,7 +88,7 @@ bombast /path/to/local/bom
 ## CLI reference
 
 ```
-bombast [OPTIONS] BOM
+pombast [OPTIONS] BOM
 ```
 
 `BOM` is a Maven `G:A:V` coordinate or a path to a local directory containing
@@ -100,8 +100,8 @@ a `pom.xml` that declares `<dependencyManagement>`.
 | `-i, --include G:A` | Include only matching components (repeatable, wildcards OK) |
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
-| `--config PATH` | Path to `bombast.toml` config file |
-| `-o, --output-dir PATH` | Output directory (default: `bombast-output`) |
+| `--config PATH` | Path to `pombast.toml` config file |
+| `-o, --output-dir PATH` | Output directory (default: `pombast-output`) |
 | `-p, --prune` | Only build components that depend on changed artifacts |
 | `-f, --force` | Wipe output directory if it already exists |
 | `-s, --skip-build` | Prepare source trees but skip actual builds |
@@ -113,7 +113,7 @@ a `pom.xml` that declares `<dependencyManagement>`.
 
 ## Configuration file
 
-Create a `bombast.toml` for reusable settings:
+Create a `pombast.toml` for reusable settings:
 
 ```toml
 [filter]
@@ -137,16 +137,16 @@ components = ["org.example:legacy-lib"]
 "java-version" = 17
 ```
 
-Pass it with `--config bombast.toml`.
+Pass it with `--config pombast.toml`.
 
 ---
 
 ## Python API
 
 ```python
-import bombast
+import pombast
 
-report = bombast.validate("org.scijava:pom-scijava:37.0.0")
+report = pombast.validate("org.scijava:pom-scijava:37.0.0")
 print(report.summary())
 
 for result in report.failures:
@@ -175,7 +175,7 @@ compatible versions through its own resolution logic.
 
 ## Caching
 
-Bombast caches two things under `~/.cache/bombast/`:
+Bombast caches two things under `~/.cache/pombast/`:
 
 - **`repos/`** — bare Git clones of component repositories, reused across runs.
 - **`success/`** — fingerprints of successful builds. If a component's BOM

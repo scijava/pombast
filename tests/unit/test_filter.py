@@ -1,6 +1,6 @@
 """Tests for component filtering."""
 
-from bombast.core import Component, ComponentFilter
+from pombast.core import Component, ComponentFilter
 
 
 def _c(group: str, name: str) -> Component:

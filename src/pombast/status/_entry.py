@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 _SNAPSHOT_THRESHOLD = timedelta(days=1)
 

@@ -7,12 +7,12 @@ import re
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from bombast.util._git import ls_remote_tags
+from pombast.util._git import ls_remote_tags
 
 if TYPE_CHECKING:
     from jgo.maven import MavenContext
 
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 

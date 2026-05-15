@@ -1,4 +1,4 @@
-"""Command-line interface for bombast."""
+"""Command-line interface for pombast."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ import rich_click as click
 from rich.console import Console
 from rich.table import Table
 
-from bombast import __version__
-from bombast.config._settings import BombastConfig, PipelineConfig
-from bombast.core._component import BuildStatus
-from bombast.core._pipeline import Pipeline
+from pombast import __version__
+from pombast.config._settings import BombastConfig, PipelineConfig
+from pombast.core._component import BuildStatus
+from pombast.core._pipeline import Pipeline
 
 console = Console()
 
@@ -21,7 +21,7 @@ console = Console()
 @click.group()
 @click.version_option(version=__version__)
 def cli() -> None:
-    """bombast — validate and monitor Maven BOM components."""
+    """pombast — validate and monitor Maven BOM components."""
 
 
 @cli.command("validate")
@@ -54,13 +54,13 @@ def cli() -> None:
     "--config",
     type=click.Path(exists=True, path_type=Path),
     default=None,
-    help="Path to bombast.toml configuration file.",
+    help="Path to pombast.toml configuration file.",
 )
 @click.option(
     "-o",
     "--output-dir",
     type=click.Path(path_type=Path),
-    default="bombast-output",
+    default="pombast-output",
     help="Output directory.",
 )
 @click.option(
@@ -118,8 +118,8 @@ def validate_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    bombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
-    effective_min_java = min_java or bombast_config.min_java_version
+    pombast_config = BombastConfig.load(config) if config else BombastConfig.empty()
+    effective_min_java = min_java or pombast_config.min_java_version
 
     pipeline_config = PipelineConfig(
         bom=bom,
@@ -134,10 +134,10 @@ def validate_cmd(
         skip_build=skip_build,
         test_binary=not no_binary_test,
         verbose=verbose,
-        config=bombast_config,
+        config=pombast_config,
     )
 
-    console.print(f"[bold]bombast {__version__}[/bold]")
+    console.print(f"[bold]pombast {__version__}[/bold]")
     console.print(f"Validating BOM: [cyan]{bom}[/cyan]")
 
     pipeline = Pipeline(pipeline_config)

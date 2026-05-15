@@ -7,16 +7,16 @@ from typing import TYPE_CHECKING, Any, Iterable
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from bombast.status._drift import format_duration
+from pombast.status._drift import format_duration
 
 if TYPE_CHECKING:
-    from bombast.status._entry import StatusEntry
+    from pombast.status._entry import StatusEntry
 
 
 _COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build"]
 
 _env = Environment(
-    loader=PackageLoader("bombast.status", "templates"),
+    loader=PackageLoader("pombast.status", "templates"),
     autoescape=select_autoescape(["html", "j2"]),
     trim_blocks=False,
     lstrip_blocks=False,

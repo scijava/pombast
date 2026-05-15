@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bombast.config._settings import BombastConfig, PipelineConfig
+from pombast.config._settings import BombastConfig, PipelineConfig
 
 
 class TestBombastConfig:
@@ -17,7 +17,7 @@ class TestBombastConfig:
         assert config.build_properties == {}
 
     def test_load_from_toml(self, tmp_path):
-        toml_path = tmp_path / "bombast.toml"
+        toml_path = tmp_path / "pombast.toml"
         toml_path.write_text("""\
 [filter]
 includes = ["org.scijava:*", "net.imagej:*"]
@@ -52,7 +52,7 @@ java-version = 17
         }
 
     def test_load_minimal_toml(self, tmp_path):
-        toml_path = tmp_path / "bombast.toml"
+        toml_path = tmp_path / "pombast.toml"
         toml_path.write_text("")
         config = BombastConfig.load(toml_path)
         assert config.filter.includes == []
@@ -70,7 +70,7 @@ class TestPipelineConfig:
         assert config.changes == []
         assert config.includes == []
         assert config.excludes == []
-        assert config.output_dir == Path("bombast-output")
+        assert config.output_dir == Path("pombast-output")
         assert config.prune is False
         assert config.force is False
         assert config.skip_build is False

@@ -8,10 +8,10 @@ import zipfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bombast.cache._fingerprint import fingerprint
-from bombast.cache._success import SuccessCache
-from bombast.core._component import BuildResult, BuildStatus, Component
-from bombast.util._process import run_maven
+from pombast.cache._fingerprint import fingerprint
+from pombast.cache._success import SuccessCache
+from pombast.core._component import BuildResult, BuildStatus, Component
+from pombast.util._process import run_maven
 
 if TYPE_CHECKING:
     from pathlib import Path

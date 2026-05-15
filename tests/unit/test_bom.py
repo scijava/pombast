@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bombast.maven._bom import load_bom
+from pombast.maven._bom import load_bom
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 

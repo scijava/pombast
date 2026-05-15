@@ -1,4 +1,4 @@
-"""Shared test fixtures for bombast."""
+"""Shared test fixtures for pombast."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from bombast.core import Component
+from pombast.core import Component
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

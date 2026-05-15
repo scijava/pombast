@@ -1,4 +1,4 @@
-"""bombast status subcommand."""
+"""pombast status subcommand."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from bombast.core._filter import ComponentFilter
-from bombast.maven._bom import load_bom
-from bombast.maven._rules import RulesXML
-from bombast.status._drift import drift_text
-from bombast.status._html import generate_html
-from bombast.status._query import (
+from pombast.core._filter import ComponentFilter
+from pombast.maven._bom import load_bom
+from pombast.maven._rules import RulesXML
+from pombast.status._drift import drift_text
+from pombast.status._html import generate_html
+from pombast.status._query import (
     DEFAULT_MAX_AGE,
     load_kv_file,
     load_timestamps_file,
@@ -30,7 +30,7 @@ from bombast.status._query import (
 )
 
 if TYPE_CHECKING:
-    from bombast.status._entry import StatusEntry
+    from pombast.status._entry import StatusEntry
 
 console = Console()
 

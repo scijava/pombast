@@ -8,14 +8,14 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator
 
-from bombast.cache._pom_timestamp import PomTimestampCache
-from bombast.core._filter import ComponentFilter
-from bombast.status._entry import StatusEntry
+from pombast.cache._pom_timestamp import PomTimestampCache
+from pombast.core._filter import ComponentFilter
+from pombast.status._entry import StatusEntry
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
-    from bombast.maven._bom import BomData
-    from bombast.maven._rules import RulesXML
+    from pombast.core._component import Component
+    from pombast.maven._bom import BomData
+    from pombast.maven._rules import RulesXML
 
 _pom_ts_cache = PomTimestampCache()
 

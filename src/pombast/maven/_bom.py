@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jgo.maven import MavenContext, Model
 
-from bombast.core._component import Component
+from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 

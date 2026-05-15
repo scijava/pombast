@@ -8,23 +8,23 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from bombast.cache._repo import RepoCache
-from bombast.cache._success import SuccessCache
-from bombast.core._component import (
+from pombast.cache._repo import RepoCache
+from pombast.cache._success import SuccessCache
+from pombast.core._component import (
     BuildResult,
     BuildStatus,
     ValidationReport,
 )
-from bombast.core._filter import ComponentFilter
-from bombast.maven._bom import load_bom
-from bombast.maven._builder import ComponentSource, MavenComponentBuilder
-from bombast.maven._java_version import detect_build_java_version
-from bombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
-from bombast.maven._scm import resolve_scm
-from bombast.util._git import shallow_clone
+from pombast.core._filter import ComponentFilter
+from pombast.maven._bom import load_bom
+from pombast.maven._builder import ComponentSource, MavenComponentBuilder
+from pombast.maven._java_version import detect_build_java_version
+from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
+from pombast.maven._scm import resolve_scm
+from pombast.util._git import shallow_clone
 
 if TYPE_CHECKING:
-    from bombast.config._settings import PipelineConfig
+    from pombast.config._settings import PipelineConfig
 
 _log = logging.getLogger(__name__)
 

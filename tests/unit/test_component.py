@@ -1,6 +1,6 @@
 """Tests for core component types."""
 
-from bombast.core import BuildResult, BuildStatus, Component, ValidationReport
+from pombast.core import BuildResult, BuildStatus, Component, ValidationReport
 
 
 class TestComponent:

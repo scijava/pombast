@@ -9,7 +9,7 @@ from jgo.env._bytecode import detect_jar_java_version
 from jgo.maven import MavenContext, Model
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def detect_build_java_version(
     """Detect the minimum Java version needed to build and test a component.
 
     Unlike jgo's runtime analysis which only considers compile+runtime scope,
-    this considers ALL dependency scopes including test, because bombast needs
+    this considers ALL dependency scopes including test, because pombast needs
     to compile and run tests. A test dependency like mockito-core may require
     a higher Java version than the component itself.
 

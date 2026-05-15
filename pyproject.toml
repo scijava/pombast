@@ -3,7 +3,7 @@ requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bombast"
+name = "pombast"
 version = "0.1.0.dev0"
 description = "Validate that Bill-of-Materials components actually work together."
 license = "Unlicense"
@@ -45,19 +45,19 @@ dev = [
 ]
 
 [project.scripts]
-bombast = "bombast.__main__:main"
+pombast = "pombast.__main__:main"
 
 [project.urls]
-homepage = "https://github.com/apposed/bombast"
-source = "https://github.com/apposed/bombast"
-tracker = "https://github.com/apposed/bombast/issues"
+homepage = "https://github.com/apposed/pombast"
+source = "https://github.com/apposed/pombast"
+tracker = "https://github.com/apposed/pombast/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = false
 
 [tool.setuptools.package-data]
-"bombast.status" = ["templates/*.html.j2"]
+"pombast.status" = ["templates/*.html.j2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

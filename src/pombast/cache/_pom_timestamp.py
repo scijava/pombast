@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "bombast" / "pom-timestamps"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "pombast" / "pom-timestamps"
 
 
 class PomTimestampCache:

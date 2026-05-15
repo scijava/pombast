@@ -1,8 +1,8 @@
 """Tests for caching: fingerprinting and success tracking."""
 
-from bombast.cache._fingerprint import fingerprint
-from bombast.cache._success import SuccessCache
-from bombast.core._component import Component
+from pombast.cache._fingerprint import fingerprint
+from pombast.cache._success import SuccessCache
+from pombast.core._component import Component
 
 
 def _c(group: str, name: str, version: str) -> Component:

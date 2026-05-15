@@ -6,8 +6,8 @@ components build and pass tests when used together at the declared versions.
 
 Quick Start
 -----------
->>> import bombast
->>> report = bombast.validate("org.scijava:pom-scijava:37.0.0")
+>>> import pombast
+>>> report = pombast.validate("org.scijava:pom-scijava:37.0.0")
 >>> print(report.summary())
 
 API

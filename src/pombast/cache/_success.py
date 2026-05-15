@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
-DEFAULT_SUCCESS_DIR = Path.home() / ".cache" / "bombast" / "success"
+DEFAULT_SUCCESS_DIR = Path.home() / ".cache" / "pombast" / "success"
 
 
 class SuccessCache:

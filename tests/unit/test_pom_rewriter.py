@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from bombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
+from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 
 NS = "http://maven.apache.org/POM/4.0.0"
 

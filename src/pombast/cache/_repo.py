@@ -6,14 +6,14 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from bombast.util._git import bare_clone, default_branch, fetch_tags, has_ref
+from pombast.util._git import bare_clone, default_branch, fetch_tags, has_ref
 
 if TYPE_CHECKING:
-    from bombast.core._component import Component
+    from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "bombast" / "repos"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "pombast" / "repos"
 
 
 class RepoCache:
