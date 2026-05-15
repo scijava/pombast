@@ -6,6 +6,7 @@ and ~/.cache/cjdk caches.  They are intentionally slow.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pombast.config._settings import PipelineConfig
@@ -64,4 +65,23 @@ class TestValidate:
         assert failures, (
             "expected validation failure when building scijava-common against "
             f"parsington 1.0.0, but got: {[r.status for r in report.results]}"
+        )
+
+        all_logs = []
+        for failure in failures:
+            try:
+                log_content = Path(failure.log_path).read_text(encoding="utf-8")
+                all_logs.append(log_content)
+            except Exception as e:
+                print(f"Warning: Could not read failure log at {failure.log_path}: {e}")
+
+        log_content_to_check = "\n\n".join(all_logs)
+
+        expected_incompatibility_regex = r"package org\.scijava\.parsington does not exist|cannot find symbol class Token|cannot find symbol class DefaultTreeEvaluator"
+
+        assert re.search(
+            expected_incompatibility_regex, log_content_to_check, re.IGNORECASE
+        ), (
+            f"expected compilation failure matching signature {expected_incompatibility_regex}, "
+            f"but found unexpected build log content."
         )
