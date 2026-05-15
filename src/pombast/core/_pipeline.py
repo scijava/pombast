@@ -106,9 +106,10 @@ class Pipeline:
             output_dir=output_dir,
             all_components=all_components,
             ctx=ctx,
-            success_cache=SuccessCache(),
+            success_cache=SuccessCache(cache_dir=self.config.success_cache_dir),
             extra_properties=self.config.config.build_properties,
             test_binary=self.config.test_binary,
+            changes=self.config.changes or None,
         )
 
         for component in included:

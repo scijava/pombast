@@ -45,6 +45,7 @@ class MavenComponentBuilder:
         success_cache: SuccessCache | None = None,
         extra_properties: dict[str, str] | None = None,
         test_binary: bool = True,
+        changes: list[str] | None = None,
     ) -> None:
         self.output_dir = output_dir
         self.all_components = all_components
@@ -52,7 +53,7 @@ class MavenComponentBuilder:
         self.success_cache = success_cache or SuccessCache()
         self.extra_properties = extra_properties or {}
         self.test_binary = test_binary
-        self._fingerprint = fingerprint(all_components)
+        self._fingerprint = fingerprint(all_components, changes)
 
     def build_and_test(self, source: ComponentSource) -> BuildResult:
         """Build and test a single component.

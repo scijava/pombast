@@ -73,6 +73,7 @@ class PipelineConfig:
     excludes: list[str] = field(default_factory=list)
     repositories: list[str] = field(default_factory=list)
     output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
+    success_cache_dir: Path | None = None
     prune: bool = False
     force: bool = False
     skip_build: bool = False
