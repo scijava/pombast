@@ -237,7 +237,7 @@ class MavenComponentBuilder:
 
             locator = JavaLocator(
                 java_version=java_version,
-                java_source=JavaSource.AUTO,
+                java_source=JavaSource.DOWNLOAD,
             )
             # locate() returns Path to java executable (e.g. .../bin/java).
             # We need JAVA_HOME, which is the parent of the bin/ directory.
