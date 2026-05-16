@@ -120,7 +120,9 @@ class Pipeline:
 
         for component in included:
             # Prune: skip components that don't directly depend on any changed artifact.
-            if changed_gas and not self._depends_on_changed(component, changed_gas, ctx):
+            if changed_gas and not self._depends_on_changed(
+                component, changed_gas, ctx
+            ):
                 _log.info(
                     "%s: skipping (pruned — no direct dependency on changed artifacts)",
                     component.coordinate,
@@ -241,7 +243,7 @@ class Pipeline:
                 .pom()
             )
             model = Model(pom, ctx, lenient=True)
-            for (g, a, _c, _t) in model.deps:
+            for g, a, _c, _t in model.deps:
                 if f"{g}:{a}" in changed_gas:
                     return True
         except Exception as e:
