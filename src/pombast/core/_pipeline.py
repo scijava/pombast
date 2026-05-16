@@ -13,6 +13,7 @@ from pombast.cache._success import SuccessCache
 from pombast.core._component import (
     BuildResult,
     BuildStatus,
+    Component,
     ValidationReport,
 )
 from pombast.core._filter import ComponentFilter
@@ -112,7 +113,27 @@ class Pipeline:
             changes=self.config.changes or None,
         )
 
+        # Precompute changed G:A set once for prune filtering.
+        changed_gas: set[str] = set()
+        if self.config.prune and self.config.changes:
+            changed_gas = {":".join(c.split(":")[:2]) for c in self.config.changes}
+
         for component in included:
+            # Prune: skip components that don't directly depend on any changed artifact.
+            if changed_gas and not self._depends_on_changed(component, changed_gas, ctx):
+                _log.info(
+                    "%s: skipping (pruned — no direct dependency on changed artifacts)",
+                    component.coordinate,
+                )
+                report.results.append(
+                    BuildResult(
+                        component=component,
+                        status=BuildStatus.SKIPPED,
+                        skipped_reason="pruned: no dependency on changed artifacts",
+                    )
+                )
+                continue
+
             # Check if tests should be skipped for this component.
             if component.ga in skip_tests_set:
                 _log.info(
@@ -206,6 +227,31 @@ class Pipeline:
 
         report.end_time = datetime.now(timezone.utc)
         return report
+
+    def _depends_on_changed(
+        self, component: Component, changed_gas: set[str], ctx
+    ) -> bool:
+        """Return True if component directly depends on any of the given G:A artifacts."""
+        from jgo.maven import Model
+
+        try:
+            pom = (
+                ctx.project(component.group, component.name)
+                .at_version(component.version)
+                .pom()
+            )
+            model = Model(pom, ctx, lenient=True)
+            for (g, a, _c, _t) in model.deps:
+                if f"{g}:{a}" in changed_gas:
+                    return True
+        except Exception as e:
+            _log.warning(
+                "%s: could not check dependencies for pruning — building anyway: %s",
+                component.coordinate,
+                e,
+            )
+            return True  # build rather than silently skip on error
+        return False
 
     def _apply_changes(self, dep_mgmt: dict) -> dict:
         """Return a copy of dep_mgmt with --change version overrides applied."""
