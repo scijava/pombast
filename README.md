@@ -26,13 +26,19 @@
 Given a Maven BOM (Bill of Materials) coordinate, pombast:
 
 1. Loads all managed components from the BOM.
-2. Resolves source code for each component via SCM metadata in the POM.
-3. Rewrites component POMs to pin every dependency to the version declared in
+2. Filters components by include/exclude patterns.
+3. **Mega-melt validation** — generates a single POM that lists every filtered
+   component as a direct dependency, inheriting versions from the BOM's own
+   `<dependencyManagement>`, and runs `mvn clean package` against it. This
+   catches duplicate classes across the full BOM classpath and SNAPSHOT
+   dependencies before any per-component work begins.
+4. Resolves source code for each component via SCM metadata in the POM.
+5. Rewrites component POMs to pin every dependency to the version declared in
    the BOM, overriding whatever the component's own POM or parent chain says.
-4. Optionally tests binary compatibility of the already-published JARs against
+6. Optionally tests binary compatibility of the already-published JARs against
    the pinned dependency set (catches runtime breakage without rebuilding).
-5. Rebuilds each component from source and runs its test suite.
-6. Reports which components succeeded, failed, or errored, with timing and
+7. Rebuilds each component from source and runs its test suite.
+8. Reports which components succeeded, failed, or errored, with timing and
    build logs saved per component.
 
 The result is a clear picture of whether a BOM's declared versions are mutually
@@ -105,6 +111,8 @@ a `pom.xml` that declares `<dependencyManagement>`.
 | `-p, --prune` | Only build components that depend on changed artifacts |
 | `-f, --force` | Wipe output directory if it already exists |
 | `-s, --skip-build` | Prepare source trees but skip actual builds |
+| `--mega-melt-only` | Run mega-melt BOM validation only; skip per-component builds |
+| `--no-mega-melt` | Skip mega-melt BOM validation; run only per-component builds |
 | `--no-binary-test` | Skip binary compatibility testing |
 | `--min-java N` | Minimum Java version floor for all components |
 | `-v, --verbose` | Debug logging |
@@ -152,6 +160,30 @@ print(report.summary())
 for result in report.failures:
     print(result.component.coordinate, result.status)
 ```
+
+---
+
+## How mega-melt validation works
+
+The mega-melt phase is a holistic BOM-level sanity check that runs before any
+individual component is cloned or built.
+
+Pombast generates a throwaway `mega-melt/pom.xml` inside the output directory
+that inherits from the BOM under test (via `<relativePath>`, no `mvn install`)
+and lists every filtered component as a direct `<dependency>` with no explicit
+`<version>` — versions are inherited from the BOM's own `<dependencyManagement>`.
+It then runs `mvn dependency:tree` and `mvn clean package` against that POM.
+
+Because the BOM is the parent, its enforcer rules apply: duplicate classes across
+the full classpath are detected (via `banDuplicateClasses`), and SNAPSHOT
+dependencies are rejected (via `requireReleaseDependencies`).  If either step
+fails, pombast stops and reports the failure before wasting time on per-component
+builds.
+
+The BOM pom.xml is copied into the output directory and its `<version>` is
+stamped to a synthetic non-SNAPSHOT value (`0-pombast`) so Maven and the
+enforcer's `requireReleaseVersion` rule do not complain about a SNAPSHOT parent.
+Nothing is written to `~/.m2/repository`.
 
 ---
 
