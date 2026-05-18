@@ -26,6 +26,7 @@ class PombastConfig:
 
     filter: FilterConfig = field(default_factory=FilterConfig)
     min_java_version: int | None = None
+    repositories: list[str] = field(default_factory=list)
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
@@ -50,6 +51,7 @@ class PombastConfig:
         return cls(
             filter=filter_config,
             min_java_version=int(min_java) if min_java is not None else None,
+            repositories=build_data.get("repositories", []),
             skip_tests=data.get("skip-tests", {}).get("components", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=build_data.get("properties", {}),

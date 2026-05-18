@@ -120,6 +120,7 @@ def validate_cmd(
 
     pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
     effective_min_java = min_java or pombast_config.min_java_version
+    effective_repositories = pombast_config.repositories + list(repository)
 
     pipeline_config = PipelineConfig(
         bom=bom,
@@ -127,7 +128,7 @@ def validate_cmd(
         changes=list(change),
         includes=list(include),
         excludes=list(exclude),
-        repositories=list(repository),
+        repositories=effective_repositories,
         output_dir=output_dir,
         prune=prune,
         force=force,

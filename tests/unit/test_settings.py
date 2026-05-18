@@ -29,6 +29,9 @@ components = ["org.scijava:minimaven"]
 [remove-tests]
 "net.imagej:imagej-ops" = ["CachedOpEnvironmentTest.java"]
 
+[build]
+repositories = ["https://maven.scijava.org/content/groups/public"]
+
 [build.properties]
 "java.awt.headless" = "true"
 "enforcer.skip" = "true"
@@ -43,6 +46,9 @@ java-version = 17
         assert config.remove_tests == {
             "net.imagej:imagej-ops": ["CachedOpEnvironmentTest.java"]
         }
+        assert config.repositories == [
+            "https://maven.scijava.org/content/groups/public"
+        ]
         assert config.build_properties == {
             "java.awt.headless": "true",
             "enforcer.skip": "true",
