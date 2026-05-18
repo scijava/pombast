@@ -74,18 +74,6 @@ class MavenComponentBuilder:
         component = source.component
         log_dir = self.output_dir / component.group / component.name
 
-        # Check prior-success cache.
-        if not self.success_cache.is_snapshot(component):
-            if self.success_cache.has_prior_success(component, self._fingerprint):
-                _log.info(
-                    "%s: skipping — prior success with same pins", component.coordinate
-                )
-                return BuildResult(
-                    component=component,
-                    status=BuildStatus.SKIPPED,
-                    skipped_reason="prior success",
-                )
-
         # Locate Java for this component.
         java_home = self._find_java(component)
 

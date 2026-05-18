@@ -234,6 +234,24 @@ class Pipeline:
                 )
                 continue
 
+            # Check prior-success cache before cloning.
+            if not builder.success_cache.is_snapshot(component):
+                if builder.success_cache.has_prior_success(
+                    component, builder._fingerprint
+                ):
+                    _log.info(
+                        "%s: skipping — prior success with same pins",
+                        component.coordinate,
+                    )
+                    report.results.append(
+                        BuildResult(
+                            component=component,
+                            status=BuildStatus.SKIPPED,
+                            skipped_reason="prior success",
+                        )
+                    )
+                    continue
+
             try:
                 bare_repo = repo_cache.ensure_ref(component, component.scm_url, tag)
                 shallow_clone(bare_repo, tag, source_dir)
