@@ -21,6 +21,15 @@ class FilterConfig:
 
 
 @dataclass
+class MegaMeltConfig:
+    """Configuration for the mega-melt BOM validation phase."""
+
+    java_version: int | None = None
+    template: Path | None = None  # resolved absolute path to a template POM
+    filter: FilterConfig = field(default_factory=FilterConfig)
+
+
+@dataclass
 class PombastConfig:
     """Configuration loaded from a pombast.toml file."""
 
@@ -31,6 +40,7 @@ class PombastConfig:
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
     component_overrides: dict[str, dict[str, object]] = field(default_factory=dict)
+    mega_melt: MegaMeltConfig = field(default_factory=MegaMeltConfig)
 
     @classmethod
     def load(cls, path: Path) -> PombastConfig:
@@ -45,8 +55,21 @@ class PombastConfig:
         )
 
         build_data = data.get("build", {})
-
         min_java = build_data.get("min-java-version")
+
+        mega_melt_data = data.get("mega-melt", {})
+        mega_melt_java = mega_melt_data.get("java-version")
+        template_str = mega_melt_data.get("template")
+        template_path = (path.parent / template_str).resolve() if template_str else None
+        mm_filter_data = mega_melt_data.get("filter", {})
+        mega_melt_config = MegaMeltConfig(
+            java_version=int(mega_melt_java) if mega_melt_java is not None else None,
+            template=template_path,
+            filter=FilterConfig(
+                includes=mm_filter_data.get("includes", []),
+                excludes=mm_filter_data.get("excludes", []),
+            ),
+        )
 
         return cls(
             filter=filter_config,
@@ -56,6 +79,7 @@ class PombastConfig:
             remove_tests=data.get("remove-tests", {}),
             build_properties=build_data.get("properties", {}),
             component_overrides={k: v for k, v in data.get("components", {}).items()},
+            mega_melt=mega_melt_config,
         )
 
     @classmethod
@@ -82,5 +106,9 @@ class PipelineConfig:
     test_binary: bool = True
     mega_melt_only: bool = False
     no_mega_melt: bool = False
+    mega_melt_includes: list[str] = field(default_factory=list)
+    mega_melt_excludes: list[str] = field(default_factory=list)
+    mega_melt_java_version: int | None = None
+    mega_melt_template: Path | None = None
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)

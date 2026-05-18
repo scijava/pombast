@@ -28,6 +28,7 @@ def prepare_mega_melt(
     mega_melt_dir: Path,
     components: list[Component],
     repositories: dict[str, str],
+    template_path: Path | None = None,
 ) -> Path:
     """Set up the mega-melt directory and write its pom.xml.
 
@@ -69,15 +70,22 @@ def prepare_mega_melt(
     ET.indent(tree, space="\t")
     tree.write(parent_pom, xml_declaration=True, encoding="UTF-8")
 
-    # Generate the mega-melt pom.xml.
+    # Generate the mega-melt pom.xml (from template or from scratch).
     mega_melt_pom = mega_melt_dir / "pom.xml"
-    _write_mega_melt_pom(
-        pom_path=mega_melt_pom,
-        parent_group=bom_group,
-        parent_artifact=bom_artifact,
-        components=components,
-        repositories=repositories,
-    )
+    if template_path is not None:
+        _write_mega_melt_pom_from_template(
+            template_path=template_path,
+            pom_path=mega_melt_pom,
+            components=components,
+        )
+    else:
+        _write_mega_melt_pom(
+            pom_path=mega_melt_pom,
+            parent_group=bom_group,
+            parent_artifact=bom_artifact,
+            components=components,
+            repositories=repositories,
+        )
     _log.info("Generated mega-melt POM with %d components", len(components))
     return mega_melt_pom
 
@@ -140,6 +148,56 @@ def _write_mega_melt_pom(
         _sub(dep, "artifactId", comp.name)
 
     tree = ET.ElementTree(project)
+    ET.indent(tree, space="\t")
+    tree.write(pom_path, xml_declaration=True, encoding="UTF-8")
+
+
+def _write_mega_melt_pom_from_template(
+    template_path: Path,
+    pom_path: Path,
+    components: list[Component],
+) -> None:
+    """Write the mega-melt pom.xml by adapting a template POM.
+
+    Updates <parent><version> to the synthetic value, adds/replaces
+    <parent><relativePath>, updates the project <version>, and replaces
+    the <dependencies> block with the given component list.
+    """
+    ET.register_namespace("", _NS)
+    ET.register_namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance")
+
+    tree = ET.parse(template_path)
+    root = tree.getroot()
+
+    parent_elem = root.find(f"{{{_NS}}}parent")
+    if parent_elem is None:
+        raise ValueError(f"Template POM has no <parent> element: {template_path}")
+
+    version_elem = parent_elem.find(f"{{{_NS}}}version")
+    if version_elem is None:
+        version_elem = ET.SubElement(parent_elem, f"{{{_NS}}}version")
+    version_elem.text = _SYNTHETIC_VERSION
+
+    rel_path_elem = parent_elem.find(f"{{{_NS}}}relativePath")
+    if rel_path_elem is None:
+        rel_path_elem = ET.SubElement(parent_elem, f"{{{_NS}}}relativePath")
+    rel_path_elem.text = "bom/pom.xml"
+
+    proj_version_elem = root.find(f"{{{_NS}}}version")
+    if proj_version_elem is not None:
+        proj_version_elem.text = "0-pombast"
+
+    existing_deps = root.find(f"{{{_NS}}}dependencies")
+    if existing_deps is not None:
+        root.remove(existing_deps)
+
+    if components:
+        deps_elem = ET.SubElement(root, f"{{{_NS}}}dependencies")
+        for comp in components:
+            dep = ET.SubElement(deps_elem, f"{{{_NS}}}dependency")
+            _sub(dep, "groupId", comp.group)
+            _sub(dep, "artifactId", comp.name)
+
     ET.indent(tree, space="\t")
     tree.write(pom_path, xml_declaration=True, encoding="UTF-8")
 

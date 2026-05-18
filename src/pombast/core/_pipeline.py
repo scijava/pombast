@@ -18,7 +18,7 @@ from pombast.core._component import (
 )
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
-from pombast.maven._builder import ComponentSource, MavenComponentBuilder
+from pombast.maven._builder import ComponentSource, MavenComponentBuilder, locate_java
 from pombast.maven._java_version import detect_build_java_version
 from pombast.maven._mega_melt import prepare_mega_melt, run_mega_melt_validation
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
@@ -96,14 +96,31 @@ class Pipeline:
         # Phase 3: Mega-melt validation (holistic BOM classpath check).
         if not self.config.no_mega_melt:
             mega_melt_dir = output_dir / "mega-melt"
+            mega_melt_components = self._build_mega_melt_filter().filter(all_components)
+            _log.info("Mega-melt: %d components", len(mega_melt_components))
+
+            effective_mm_java = (
+                self.config.mega_melt_java_version
+                or self.config.config.mega_melt.java_version
+                or self.config.min_java_version
+            )
+            mm_java_home = locate_java(effective_mm_java) if effective_mm_java else None
+
+            template_path = (
+                self.config.mega_melt_template or self.config.config.mega_melt.template
+            )
+
             try:
                 prepare_mega_melt(
                     bom_data.pom_path,
                     mega_melt_dir,
-                    included,
+                    mega_melt_components,
                     self._build_repo_map(),
+                    template_path=template_path,
                 )
-                success, tree_log, build_log = run_mega_melt_validation(mega_melt_dir)
+                success, tree_log, build_log = run_mega_melt_validation(
+                    mega_melt_dir, java_home=mm_java_home
+                )
             except Exception as e:
                 _log.error("Mega-melt setup failed: %s", e)
                 success, tree_log, build_log = False, None, None
@@ -327,14 +344,44 @@ class Pipeline:
 
     def _build_filter(self) -> ComponentFilter:
         """Build a ComponentFilter from CLI args and config file."""
-        # CLI args take precedence; fall back to config file.
         includes = list(self.config.includes) or self.config.config.filter.includes
         excludes = list(self.config.excludes) + self.config.config.filter.excludes
         return ComponentFilter(includes=includes, excludes=excludes)
 
+    def _build_mega_melt_filter(self) -> ComponentFilter:
+        """Build a ComponentFilter for the mega-melt phase.
+
+        Defaults to all BOM components (no includes filter) with only
+        mega-melt-specific excludes applied.  CLI args and config file
+        [mega-melt.filter] both feed in.
+        """
+        includes = (
+            list(self.config.mega_melt_includes)
+            or self.config.config.mega_melt.filter.includes
+        )
+        excludes = (
+            list(self.config.mega_melt_excludes)
+            + self.config.config.mega_melt.filter.excludes
+        )
+        return ComponentFilter(includes=includes, excludes=excludes)
+
     def _build_repo_map(self) -> dict[str, str]:
-        """Build the remote repository map from CLI args."""
+        """Build the remote repository map from config and CLI args."""
         repos = {"central": "https://repo1.maven.org/maven2"}
-        for i, url in enumerate(self.config.repositories):
-            repos[f"repo{i}"] = url
+        for i, repo_str in enumerate(self.config.repositories):
+            repo_id, url = _parse_repo_string(repo_str, f"repo{i}")
+            repos[repo_id] = url
         return repos
+
+
+def _parse_repo_string(repo_str: str, fallback_id: str) -> tuple[str, str]:
+    """Parse 'id:url' or bare 'url'; return (repo_id, url).
+
+    Handles both 'https://host/path' (bare URL) and
+    'myrepo:https://host/path' (id-prefixed) formats.
+    """
+    scheme_pos = repo_str.find("://")
+    if scheme_pos > 0 and ":" in repo_str[:scheme_pos]:
+        sep = repo_str.index(":")
+        return repo_str[:sep], repo_str[sep + 1 :]
+    return fallback_id, repo_str

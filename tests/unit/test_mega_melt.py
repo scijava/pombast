@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 from pombast.core._component import Component
 from pombast.maven._mega_melt import _SYNTHETIC_VERSION, prepare_mega_melt
 
@@ -171,6 +174,78 @@ class TestPrepareMegaMelt:
         root = _parse_pom(mega_dir / "pom.xml")
         assert _text(root, "parent", "groupId") == "org.example"
         assert _text(root, "parent", "artifactId") == "my-bom"
+
+    def test_template_version_replaced(self, tmp_path):
+        bom_pom = _make_bom_pom(tmp_path / "bom", "org.example", "my-bom", "1.0")
+        template = tmp_path / "template.xml"
+        template.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            "<parent><groupId>org.example</groupId>"
+            "<artifactId>my-bom</artifactId>"
+            "<version>999-template</version></parent>"
+            "<artifactId>mega-melt</artifactId>"
+            "<version>0-SNAPSHOT</version>"
+            "<packaging>pom</packaging>"
+            "</project>",
+            encoding="utf-8",
+        )
+        mega_dir = tmp_path / "mega-melt"
+
+        prepare_mega_melt(bom_pom, mega_dir, [], {}, template_path=template)
+
+        root = _parse_pom(mega_dir / "pom.xml")
+        assert _text(root, "parent", "version") == _SYNTHETIC_VERSION
+        assert _text(root, "parent", "relativePath") == "bom/pom.xml"
+        assert _text(root, "version") == "0-pombast"
+
+    def test_template_components_replace_existing_deps(self, tmp_path):
+        bom_pom = _make_bom_pom(tmp_path / "bom", "org.example", "my-bom", "1.0")
+        template = tmp_path / "template.xml"
+        template.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            "<parent><groupId>org.example</groupId>"
+            "<artifactId>my-bom</artifactId>"
+            "<version>999-template</version></parent>"
+            "<artifactId>mega-melt</artifactId>"
+            "<version>0-SNAPSHOT</version><packaging>pom</packaging>"
+            "<dependencies><dependency>"
+            "<groupId>old.dep</groupId><artifactId>old</artifactId>"
+            "</dependency></dependencies>"
+            "</project>",
+            encoding="utf-8",
+        )
+        from pombast.core._component import Component
+
+        components = [Component(group="org.new", name="alpha", version="1.0")]
+        mega_dir = tmp_path / "mega-melt"
+
+        prepare_mega_melt(bom_pom, mega_dir, components, {}, template_path=template)
+
+        root = _parse_pom(mega_dir / "pom.xml")
+        deps = root.findall(f".//{{{_NS}}}dependencies/{{{_NS}}}dependency")
+        gas = {
+            (d.findtext(f"{{{_NS}}}groupId"), d.findtext(f"{{{_NS}}}artifactId"))
+            for d in deps
+        }
+        assert ("org.new", "alpha") in gas
+        assert ("old.dep", "old") not in gas
+
+    def test_template_no_parent_raises(self, tmp_path):
+        bom_pom = _make_bom_pom(tmp_path / "bom", "org.example", "my-bom", "1.0")
+        template = tmp_path / "template.xml"
+        template.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            "<artifactId>mega-melt</artifactId>"
+            "</project>",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="no <parent>"):
+            prepare_mega_melt(
+                bom_pom, tmp_path / "mega-melt", [], {}, template_path=template
+            )
 
     def test_missing_group_or_artifact_raises(self, tmp_path):
         pom = tmp_path / "bad.pom"

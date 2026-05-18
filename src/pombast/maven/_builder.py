@@ -209,32 +209,23 @@ class MavenComponentBuilder:
             return None
 
     def _find_java(self, component: Component) -> Path | None:
-        """Find the appropriate Java installation for a component.
-
-        Uses jgo's JavaLocator to find or download the right JDK version.
-
-        Returns:
-            Path to JAVA_HOME, or None to use system default.
-        """
-        java_version = component.java_version
-        if java_version is None:
+        if component.java_version is None:
             return None
+        return locate_java(component.java_version)
 
-        try:
-            from jgo.util.java import JavaLocator, JavaSource
 
-            locator = JavaLocator(
-                java_version=java_version,
-                java_source=JavaSource.DOWNLOAD,
-            )
-            # locate() returns Path to java executable (e.g. .../bin/java).
-            # We need JAVA_HOME, which is the parent of the bin/ directory.
-            java_exe = locator.locate()
-            return java_exe.parent.parent
-        except Exception:
-            _log.warning(
-                "%s: failed to locate Java %d; using system default",
-                component.coordinate,
-                java_version,
-            )
-            return None
+def locate_java(version: int) -> Path | None:
+    """Find or download the JDK for the given major version.
+
+    Returns Path to JAVA_HOME, or None if it cannot be located.
+    """
+    try:
+        from jgo.util.java import JavaLocator, JavaSource
+
+        locator = JavaLocator(java_version=version, java_source=JavaSource.DOWNLOAD)
+        # locate() returns the java executable; JAVA_HOME is its grandparent.
+        java_exe = locator.locate()
+        return java_exe.parent.parent
+    except Exception:
+        _log.warning("Failed to locate Java %d; using system default", version)
+        return None

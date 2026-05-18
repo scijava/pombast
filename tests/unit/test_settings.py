@@ -69,6 +69,41 @@ java-version = 17
             PombastConfig.load(tmp_path / "nonexistent.toml")
 
 
+class TestMegaMeltConfig:
+    def test_defaults(self):
+        config = PombastConfig.empty()
+        assert config.mega_melt.java_version is None
+        assert config.mega_melt.template is None
+        assert config.mega_melt.filter.includes == []
+        assert config.mega_melt.filter.excludes == []
+
+    def test_load_mega_melt_section(self, tmp_path):
+        template = tmp_path / "template.xml"
+        template.write_text("<project/>")
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text("""\
+[mega-melt]
+java-version = 11
+template = "template.xml"
+
+[mega-melt.filter]
+includes = ["org.foo:*"]
+excludes = ["org.foo:bad"]
+""")
+        config = PombastConfig.load(toml_path)
+        assert config.mega_melt.java_version == 11
+        assert config.mega_melt.template == template.resolve()
+        assert config.mega_melt.filter.includes == ["org.foo:*"]
+        assert config.mega_melt.filter.excludes == ["org.foo:bad"]
+
+    def test_load_mega_melt_defaults_when_absent(self, tmp_path):
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text("")
+        config = PombastConfig.load(toml_path)
+        assert config.mega_melt.java_version is None
+        assert config.mega_melt.template is None
+
+
 class TestPipelineConfig:
     def test_defaults(self):
         config = PipelineConfig(bom="org.scijava:pom-scijava:37.0.0")
