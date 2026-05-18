@@ -20,6 +20,7 @@ def run_maven(
     extra_properties: dict[str, str] | None = None,
     log_path: Path | None = None,
     timeout: int | None = None,
+    skip_enforcer: bool = True,
 ) -> subprocess.CompletedProcess:
     """Run a Maven command.
 
@@ -30,13 +31,17 @@ def run_maven(
         extra_properties: Additional -D properties to pass.
         log_path: If provided, write stdout+stderr to this file.
         timeout: Timeout in seconds.
+        skip_enforcer: If True (default), pass -Denforcer.skip to suppress
+            enforcer rules. Set False for mega-melt validation where the
+            enforcer is the point.
 
     Returns:
         CompletedProcess with stdout/stderr.
     """
     cmd = ["mvn"]
 
-    cmd.extend(["-Denforcer.skip"])
+    if skip_enforcer:
+        cmd.append("-Denforcer.skip")
 
     if extra_properties:
         for key, value in extra_properties.items():

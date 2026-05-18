@@ -80,5 +80,7 @@ class PipelineConfig:
     force: bool = False
     skip_build: bool = False
     test_binary: bool = True
+    mega_melt_only: bool = False
+    no_mega_melt: bool = False
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)

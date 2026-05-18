@@ -20,6 +20,7 @@ from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._builder import ComponentSource, MavenComponentBuilder
 from pombast.maven._java_version import detect_build_java_version
+from pombast.maven._mega_melt import prepare_mega_melt, run_mega_melt_validation
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 from pombast.maven._scm import resolve_scm
 from pombast.util._git import shallow_clone
@@ -91,6 +92,37 @@ class Pipeline:
             len(included),
             len(all_components),
         )
+
+        # Phase 3: Mega-melt validation (holistic BOM classpath check).
+        if not self.config.no_mega_melt:
+            mega_melt_dir = output_dir / "mega-melt"
+            try:
+                prepare_mega_melt(
+                    bom_data.pom_path,
+                    mega_melt_dir,
+                    included,
+                    self._build_repo_map(),
+                )
+                success, tree_log, build_log = run_mega_melt_validation(mega_melt_dir)
+            except Exception as e:
+                _log.error("Mega-melt setup failed: %s", e)
+                success, tree_log, build_log = False, None, None
+
+            report.mega_melt_success = success
+            report.mega_melt_tree_log = tree_log
+            report.mega_melt_build_log = build_log
+
+            if not success:
+                _log.warning(
+                    "Mega-melt failed — skipping per-component builds. "
+                    "Use --no-mega-melt to run components anyway."
+                )
+                report.end_time = datetime.now(timezone.utc)
+                return report
+
+        if self.config.mega_melt_only:
+            report.end_time = datetime.now(timezone.utc)
+            return report
 
         # Apply skip-tests from config.
         skip_tests_set = set(self.config.config.skip_tests)

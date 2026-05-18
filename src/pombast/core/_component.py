@@ -78,6 +78,9 @@ class ValidationReport:
     results: list[BuildResult] = field(default_factory=list)
     start_time: datetime | None = None
     end_time: datetime | None = None
+    mega_melt_success: bool | None = None
+    mega_melt_tree_log: Path | None = None
+    mega_melt_build_log: Path | None = None
 
     @property
     def successes(self) -> list[BuildResult]:
@@ -98,8 +101,11 @@ class ValidationReport:
     def summary(self) -> str:
         """Return a human-readable summary string."""
         total = len(self.results)
-        lines = [
-            f"BOM: {self.bom}",
+        lines = [f"BOM: {self.bom}"]
+        if self.mega_melt_success is not None:
+            status = "SUCCESS" if self.mega_melt_success else "FAILURE"
+            lines.append(f"Mega-melt: {status}")
+        lines += [
             f"Total: {total}",
             f"  Success: {len(self.successes)}",
             f"  Failed:  {len(self.failures)}",

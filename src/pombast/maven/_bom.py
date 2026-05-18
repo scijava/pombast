@@ -15,10 +15,17 @@ _log = logging.getLogger(__name__)
 class BomData:
     """Result of loading a Maven BOM."""
 
-    def __init__(self, components: list[Component], dep_mgmt: dict, ctx: MavenContext):
+    def __init__(
+        self,
+        components: list[Component],
+        dep_mgmt: dict,
+        ctx: MavenContext,
+        pom_path: Path,
+    ):
         self.components = components
         self.dep_mgmt = dep_mgmt
         self.ctx = ctx
+        self.pom_path = pom_path
 
 
 def load_bom(
@@ -44,8 +51,10 @@ def load_bom(
     bom_path = Path(bom)
     if bom_path.is_dir() or bom_path.joinpath("pom.xml").exists():
         pom = _load_local_bom(bom_path, ctx)
+        pom_file = bom_path / "pom.xml"
     elif ":" in bom:
         pom = _load_remote_bom(bom, ctx)
+        pom_file = _remote_pom_path(bom, ctx)
     else:
         raise FileNotFoundError(f"Not a directory and not a G:A:V coordinate: {bom}")
 
@@ -92,7 +101,9 @@ def load_bom(
         )
 
     _log.info("Extracted %d components from BOM", len(components))
-    return BomData(components=components, dep_mgmt=model.dep_mgmt, ctx=ctx)
+    return BomData(
+        components=components, dep_mgmt=model.dep_mgmt, ctx=ctx, pom_path=pom_file
+    )
 
 
 def _load_local_bom(bom_dir: Path, ctx: MavenContext):
@@ -117,3 +128,17 @@ def _load_remote_bom(bom: str, ctx: MavenContext):
 
     component = ctx.project(group_id, artifact_id).at_version(version)
     return component.pom()
+
+
+def _remote_pom_path(bom: str, ctx: MavenContext) -> Path:
+    """Compute the local cache path for a remote BOM's POM file."""
+    parts = bom.split(":")
+    group_id, artifact_id, version = parts[0], parts[1], parts[2]
+    group_path = group_id.replace(".", "/")
+    return (
+        Path(ctx.repo_cache)
+        / group_path
+        / artifact_id
+        / version
+        / f"{artifact_id}-{version}.pom"
+    )

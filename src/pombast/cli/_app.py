@@ -82,6 +82,16 @@ def cli() -> None:
     help="Prepare everything but skip actual builds.",
 )
 @click.option(
+    "--mega-melt-only",
+    is_flag=True,
+    help="Run mega-melt BOM validation only; skip per-component builds.",
+)
+@click.option(
+    "--no-mega-melt",
+    is_flag=True,
+    help="Skip mega-melt BOM validation; run only per-component builds.",
+)
+@click.option(
     "--no-binary-test",
     is_flag=True,
     help="Skip binary compatibility testing (only rebuild from source).",
@@ -104,6 +114,8 @@ def validate_cmd(
     prune: bool,
     force: bool,
     skip_build: bool,
+    mega_melt_only: bool,
+    no_mega_melt: bool,
     no_binary_test: bool,
     min_java: int | None,
     verbose: bool,
@@ -133,6 +145,8 @@ def validate_cmd(
         prune=prune,
         force=force,
         skip_build=skip_build,
+        mega_melt_only=mega_melt_only,
+        no_mega_melt=no_mega_melt,
         test_binary=not no_binary_test,
         verbose=verbose,
         config=pombast_config,
@@ -144,13 +158,22 @@ def validate_cmd(
     pipeline = Pipeline(pipeline_config)
     report = pipeline.run()
 
+    if report.mega_melt_success is not None:
+        if report.mega_melt_success:
+            console.print("[green]Mega-melt: PASSED[/green]")
+        else:
+            console.print("[red]Mega-melt: FAILED[/red]")
+            if report.mega_melt_build_log:
+                console.print(f"  See: {report.mega_melt_build_log}")
+
     if report.results:
         _print_results_table(report)
 
     console.print()
     console.print(report.summary())
 
-    failures = len(report.failures) + len(report.errors)
+    mega_melt_failed = 1 if report.mega_melt_success is False else 0
+    failures = mega_melt_failed + len(report.failures) + len(report.errors)
     sys.exit(min(failures, 254))
 
 
