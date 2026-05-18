@@ -11,8 +11,9 @@ from rich.console import Console
 from rich.table import Table
 
 from pombast import __version__
-from pombast.config._settings import PipelineConfig, PombastConfig
+from pombast.config._settings import MeltConfig, PipelineConfig, PombastConfig
 from pombast.core._component import BuildStatus
+from pombast.core._melt_pipeline import MeltPipeline
 from pombast.core._pipeline import Pipeline
 
 console = Console()
@@ -24,7 +25,7 @@ def cli() -> None:
     """pombast — validate and monitor Maven BOM components."""
 
 
-@cli.command("validate")
+@cli.command("smelt")
 @click.argument("bom")
 @click.option(
     "-c",
@@ -82,16 +83,6 @@ def cli() -> None:
     help="Prepare everything but skip actual builds.",
 )
 @click.option(
-    "--mega-melt-only",
-    is_flag=True,
-    help="Run mega-melt BOM validation only; skip per-component builds.",
-)
-@click.option(
-    "--no-mega-melt",
-    is_flag=True,
-    help="Skip mega-melt BOM validation; run only per-component builds.",
-)
-@click.option(
     "--no-binary-test",
     is_flag=True,
     help="Skip binary compatibility testing (only rebuild from source).",
@@ -103,7 +94,7 @@ def cli() -> None:
     help="Minimum Java version floor for all components (e.g., 11).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
-def validate_cmd(
+def smelt_cmd(
     bom: str,
     change: tuple[str, ...],
     include: tuple[str, ...],
@@ -114,13 +105,11 @@ def validate_cmd(
     prune: bool,
     force: bool,
     skip_build: bool,
-    mega_melt_only: bool,
-    no_mega_melt: bool,
     no_binary_test: bool,
     min_java: int | None,
     verbose: bool,
 ) -> None:
-    """Validate that BOM components actually work together.
+    """Build and test each BOM component against its pinned dependencies.
 
     BOM is a Maven G:A:V coordinate or a local directory path.
     """
@@ -145,28 +134,16 @@ def validate_cmd(
         prune=prune,
         force=force,
         skip_build=skip_build,
-        mega_melt_only=mega_melt_only,
-        no_mega_melt=no_mega_melt,
-        mega_melt_java_version=pombast_config.mega_melt.java_version,
-        mega_melt_template=pombast_config.mega_melt.template,
         test_binary=not no_binary_test,
         verbose=verbose,
         config=pombast_config,
     )
 
     console.print(f"[bold]pombast {__version__}[/bold]")
-    console.print(f"Validating BOM: [cyan]{bom}[/cyan]")
+    console.print(f"Smelting BOM: [cyan]{bom}[/cyan]")
 
     pipeline = Pipeline(pipeline_config)
     report = pipeline.run()
-
-    if report.mega_melt_success is not None:
-        if report.mega_melt_success:
-            console.print("[green]Mega-melt: PASSED[/green]")
-        else:
-            console.print("[red]Mega-melt: FAILED[/red]")
-            if report.mega_melt_build_log:
-                console.print(f"  See: {report.mega_melt_build_log}")
 
     if report.results:
         _print_results_table(report)
@@ -174,8 +151,7 @@ def validate_cmd(
     console.print()
     console.print(report.summary())
 
-    mega_melt_failed = 1 if report.mega_melt_success is False else 0
-    failures = mega_melt_failed + len(report.failures) + len(report.errors)
+    failures = len(report.failures) + len(report.errors)
     sys.exit(min(failures, 254))
 
 
@@ -185,13 +161,13 @@ def validate_cmd(
     "-i",
     "--include",
     multiple=True,
-    help="G:A pattern to include in mega-melt (repeatable, wildcards OK).",
+    help="G:A pattern to include (repeatable, wildcards OK).",
 )
 @click.option(
     "-e",
     "--exclude",
     multiple=True,
-    help="G:A pattern to exclude from mega-melt (repeatable, wildcards OK).",
+    help="G:A pattern to exclude (repeatable, wildcards OK).",
 )
 @click.option(
     "-r",
@@ -236,7 +212,7 @@ def melt_cmd(
     min_java: int | None,
     verbose: bool,
 ) -> None:
-    """Run mega-melt BOM validation only (no per-component builds).
+    """Validate the full BOM classpath as a single mega-melt project.
 
     BOM is a Maven G:A:V coordinate or a local directory path.
     """
@@ -250,41 +226,31 @@ def melt_cmd(
     effective_min_java = min_java or pombast_config.min_java_version
     effective_repositories = pombast_config.repositories + list(repository)
 
-    pipeline_config = PipelineConfig(
+    melt_config = MeltConfig(
         bom=bom,
-        min_java_version=effective_min_java,
-        includes=[],
-        excludes=[],
         repositories=effective_repositories,
         output_dir=output_dir,
         force=force,
-        mega_melt_only=True,
-        mega_melt_includes=list(include),
-        mega_melt_excludes=list(exclude),
-        mega_melt_java_version=pombast_config.mega_melt.java_version,
-        mega_melt_template=pombast_config.mega_melt.template,
+        includes=list(include),
+        excludes=list(exclude),
+        min_java_version=effective_min_java,
         verbose=verbose,
         config=pombast_config,
     )
 
     console.print(f"[bold]pombast {__version__}[/bold]")
-    console.print(f"Mega-melt validation: [cyan]{bom}[/cyan]")
+    console.print(f"Melting BOM: [cyan]{bom}[/cyan]")
 
-    pipeline = Pipeline(pipeline_config)
-    report = pipeline.run()
+    result = MeltPipeline(melt_config).run()
 
-    if report.mega_melt_success is not None:
-        if report.mega_melt_success:
-            console.print("[green]Mega-melt: PASSED[/green]")
-        else:
-            console.print("[red]Mega-melt: FAILED[/red]")
-            if report.mega_melt_build_log:
-                console.print(f"  See: {report.mega_melt_build_log}")
+    if result.success:
+        console.print("[green]Mega-melt: PASSED[/green]")
+    else:
+        console.print("[red]Mega-melt: FAILED[/red]")
+        if result.build_log:
+            console.print(f"  See: {result.build_log}")
 
-    console.print()
-    console.print(report.summary())
-
-    sys.exit(0 if report.mega_melt_success is not False else 1)
+    sys.exit(0 if result.success else 1)
 
 
 def _print_results_table(report) -> None:

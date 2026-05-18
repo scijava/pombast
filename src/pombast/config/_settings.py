@@ -90,7 +90,7 @@ class PombastConfig:
 
 @dataclass
 class PipelineConfig:
-    """Full configuration for a pipeline run, combining CLI args and config file."""
+    """Configuration for a smelt (per-component build) pipeline run."""
 
     bom: str
     min_java_version: int | None = None
@@ -104,11 +104,20 @@ class PipelineConfig:
     force: bool = False
     skip_build: bool = False
     test_binary: bool = True
-    mega_melt_only: bool = False
-    no_mega_melt: bool = False
-    mega_melt_includes: list[str] = field(default_factory=list)
-    mega_melt_excludes: list[str] = field(default_factory=list)
-    mega_melt_java_version: int | None = None
-    mega_melt_template: Path | None = None
+    verbose: bool = False
+    config: PombastConfig = field(default_factory=PombastConfig.empty)
+
+
+@dataclass
+class MeltConfig:
+    """Configuration for a melt (mega-melt BOM validation) pipeline run."""
+
+    bom: str
+    repositories: list[str] = field(default_factory=list)
+    output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
+    force: bool = False
+    includes: list[str] = field(default_factory=list)
+    excludes: list[str] = field(default_factory=list)
+    min_java_version: int | None = None
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)

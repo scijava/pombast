@@ -71,16 +71,23 @@ class BuildResult:
 
 
 @dataclass
+class MeltResult:
+    """Outcome of a mega-melt BOM validation."""
+
+    bom: str
+    success: bool
+    tree_log: Path | None = None
+    build_log: Path | None = None
+
+
+@dataclass
 class ValidationReport:
-    """Aggregate outcome of validating a BOM."""
+    """Aggregate outcome of building/testing BOM components."""
 
     bom: str
     results: list[BuildResult] = field(default_factory=list)
     start_time: datetime | None = None
     end_time: datetime | None = None
-    mega_melt_success: bool | None = None
-    mega_melt_tree_log: Path | None = None
-    mega_melt_build_log: Path | None = None
 
     @property
     def successes(self) -> list[BuildResult]:
@@ -101,11 +108,8 @@ class ValidationReport:
     def summary(self) -> str:
         """Return a human-readable summary string."""
         total = len(self.results)
-        lines = [f"BOM: {self.bom}"]
-        if self.mega_melt_success is not None:
-            status = "SUCCESS" if self.mega_melt_success else "FAILURE"
-            lines.append(f"Mega-melt: {status}")
-        lines += [
+        lines = [
+            f"BOM: {self.bom}",
             f"Total: {total}",
             f"  Success: {len(self.successes)}",
             f"  Failed:  {len(self.failures)}",

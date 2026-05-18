@@ -1,4 +1,4 @@
-"""Main orchestrator for BOM validation."""
+"""Main orchestrator for per-component BOM validation (smelt)."""
 
 from __future__ import annotations
 
@@ -18,9 +18,8 @@ from pombast.core._component import (
 )
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
-from pombast.maven._builder import ComponentSource, MavenComponentBuilder, locate_java
+from pombast.maven._builder import ComponentSource, MavenComponentBuilder
 from pombast.maven._java_version import detect_build_java_version
-from pombast.maven._mega_melt import prepare_mega_melt, run_mega_melt_validation
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 from pombast.maven._scm import resolve_scm
 from pombast.util._git import shallow_clone
@@ -92,54 +91,6 @@ class Pipeline:
             len(included),
             len(all_components),
         )
-
-        # Phase 3: Mega-melt validation (holistic BOM classpath check).
-        if not self.config.no_mega_melt:
-            mega_melt_dir = output_dir / "mega-melt"
-            mega_melt_components = self._build_mega_melt_filter().filter(all_components)
-            _log.info("Mega-melt: %d components", len(mega_melt_components))
-
-            effective_mm_java = (
-                self.config.mega_melt_java_version
-                or self.config.config.mega_melt.java_version
-                or self.config.min_java_version
-            )
-            mm_java_home = locate_java(effective_mm_java) if effective_mm_java else None
-
-            template_path = (
-                self.config.mega_melt_template or self.config.config.mega_melt.template
-            )
-
-            try:
-                prepare_mega_melt(
-                    bom_data.pom_path,
-                    mega_melt_dir,
-                    mega_melt_components,
-                    self._build_repo_map(),
-                    template_path=template_path,
-                )
-                success, tree_log, build_log = run_mega_melt_validation(
-                    mega_melt_dir, java_home=mm_java_home
-                )
-            except Exception as e:
-                _log.error("Mega-melt setup failed: %s", e)
-                success, tree_log, build_log = False, None, None
-
-            report.mega_melt_success = success
-            report.mega_melt_tree_log = tree_log
-            report.mega_melt_build_log = build_log
-
-            if not success:
-                _log.warning(
-                    "Mega-melt failed — skipping per-component builds. "
-                    "Use --no-mega-melt to run components anyway."
-                )
-                report.end_time = datetime.now(timezone.utc)
-                return report
-
-        if self.config.mega_melt_only:
-            report.end_time = datetime.now(timezone.utc)
-            return report
 
         # Apply skip-tests from config.
         skip_tests_set = set(self.config.config.skip_tests)
@@ -346,23 +297,6 @@ class Pipeline:
         """Build a ComponentFilter from CLI args and config file."""
         includes = list(self.config.includes) or self.config.config.filter.includes
         excludes = list(self.config.excludes) + self.config.config.filter.excludes
-        return ComponentFilter(includes=includes, excludes=excludes)
-
-    def _build_mega_melt_filter(self) -> ComponentFilter:
-        """Build a ComponentFilter for the mega-melt phase.
-
-        Defaults to all BOM components (no includes filter) with only
-        mega-melt-specific excludes applied.  CLI args and config file
-        [mega-melt.filter] both feed in.
-        """
-        includes = (
-            list(self.config.mega_melt_includes)
-            or self.config.config.mega_melt.filter.includes
-        )
-        excludes = (
-            list(self.config.mega_melt_excludes)
-            + self.config.config.mega_melt.filter.excludes
-        )
         return ComponentFilter(includes=includes, excludes=excludes)
 
     def _build_repo_map(self) -> dict[str, str]:
