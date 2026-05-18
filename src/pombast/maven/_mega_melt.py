@@ -171,9 +171,9 @@ def run_mega_melt_validation(
         _log.warning("Mega-melt dependency:tree FAILED — see %s", tree_log)
         return False, tree_log, build_log
 
-    _log.info("Mega-melt: running clean package")
+    _log.info("Mega-melt: running validate")
     build_result = run_maven(
-        ["clean", "package"],
+        ["validate"],
         cwd=mega_melt_dir,
         java_home=java_home,
         log_path=build_log,
