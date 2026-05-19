@@ -10,6 +10,7 @@
 <script type="text/javascript" src="sortable-badges.js"></script>
 <!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
 <span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
+{{ header_html | safe }}
 <table class="sortable">
 <tr>
 {%- for column in columns %}
@@ -17,7 +18,7 @@
 {%- endfor %}
 </tr>
 {%- for row in rows %}
-<tr class="g-{{ row.group_css }} a-{{ row.artifact_css }} {{ row.bom_css }} {{ row.release_css }}">
+<tr class="g-{{ row.group_css }} a-{{ row.artifact_css }} {{ row.bom_css }} {{ row.release_css }}" data-ga="{{ row.ga }}">
 <td>
 {%- if row.project_url -%}
 <a href="{{ row.project_url }}">{{ row.artifact_label }}</a>

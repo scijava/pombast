@@ -87,6 +87,7 @@ def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
     action_key = {"Cut": 1, "Bump": 2, "None": 3}[entry.action]
 
     return {
+        "ga": f"{g}:{a}",
         "group_css": _css_safe(g),
         "artifact_css": _css_safe(a),
         "bom_css": "bom-ok" if entry.bom_ok else "bom-behind",
@@ -109,6 +110,7 @@ def generate_html(
     *,
     nexus_base: str = "",
     title: str = "SciJava software status",
+    header_html: str = "",
     footer_html: str = "",
 ) -> str:
     """Return a complete HTML page with the status dashboard table."""
@@ -118,5 +120,6 @@ def generate_html(
         title=title,
         columns=_COLUMNS,
         rows=rows,
+        header_html=header_html,
         footer_html=footer_html,
     )

@@ -113,6 +113,12 @@ console = Console()
     help="Write HTML status report to this file.",
 )
 @click.option(
+    "--header",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="HTML fragment to inject inside <body> before the main table.",
+)
+@click.option(
     "--footer",
     type=click.Path(exists=True, path_type=Path),
     default=None,
@@ -131,6 +137,7 @@ def status_cmd(
     no_timestamps: bool,
     nexus_base: str | None,
     html_path: Path | None,
+    header: Path | None,
     footer: Path | None,
     workers: int,
     max_age: int,
@@ -220,9 +227,15 @@ def status_cmd(
     )
 
     if html_path:
+        header_html = header.read_text() if header else ""
         footer_html = footer.read_text() if footer else ""
         html_path.write_text(
-            generate_html(entries, nexus_base=nexus_base or "", footer_html=footer_html)
+            generate_html(
+                entries,
+                nexus_base=nexus_base or "",
+                header_html=header_html,
+                footer_html=footer_html,
+            )
         )
         console.print(f"HTML report written to: [cyan]{html_path}[/cyan]")
 
