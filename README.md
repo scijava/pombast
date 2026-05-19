@@ -142,37 +142,30 @@ Build and test each BOM component against its pinned dependencies.
 Create a `pombast.toml` for reusable settings:
 
 ```toml
-[filter]
-# Default include/exclude patterns for smelt.
-includes = ["org.scijava:*"]
-excludes = ["org.scijava:legacy-*"]
-
-[build]
-# Java version to use for component builds without a Java version override.
+[common]
+# Shared settings used by both smelt and melt.
 default-java-version = 11
 repositories = ["scijava.public:https://maven.scijava.org/content/groups/public"]
 properties = {"skipSomePlugin" = "true"}
 
-[skip-tests]
-# Run build but skip tests for known-broken components.
-components = ["org.example:legacy-lib"]
+[smelt]
+# Settings for the smelt (per-component build) command.
+includes = ["org.scijava:*"]
+excludes = ["org.scijava:legacy-*"]
+skip-tests = ["org.example:legacy-lib"]
 
 [remove-tests]
-# Remove specific test classes before building.
+# Remove specific test classes before building (smelt only).
 "org.example:flaky-component" = ["FlakyIntegrationTest"]
 
 [components."org.example:component"]
-# Override Java version for a specific component.
+# Override Java version for a specific component (smelt only).
 "java-version" = 17
 
-[mega-melt]
-# Java version to use when running melt.
+[melt]
+# Settings for the melt (mega-melt BOM validation) command.
 java-version = 11
-# Template POM satisfying any enforcer required-element rules.
 template = "tests/mega-melt-template.xml"
-
-[mega-melt.filter]
-# Separate include/exclude patterns for melt (defaults to all BOM components).
 excludes = ["org.example:problematic-artifact"]
 ```
 

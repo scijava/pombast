@@ -19,20 +19,18 @@ class TestPombastConfig:
     def test_load_from_toml(self, tmp_path):
         toml_path = tmp_path / "pombast.toml"
         toml_path.write_text("""\
-[filter]
+[smelt]
 includes = ["org.scijava:*", "net.imagej:*"]
 excludes = ["net.imagej:ij"]
-
-[skip-tests]
-components = ["org.scijava:minimaven"]
+skip-tests = ["org.scijava:minimaven"]
 
 [remove-tests]
 "net.imagej:imagej-ops" = ["CachedOpEnvironmentTest.java"]
 
-[build]
+[common]
 repositories = ["https://maven.scijava.org/content/groups/public"]
 
-[build.properties]
+[common.properties]
 "java.awt.headless" = "true"
 "enforcer.skip" = "true"
 
@@ -69,6 +67,29 @@ java-version = 17
             PombastConfig.load(tmp_path / "nonexistent.toml")
 
 
+class TestLoadDefault:
+    def test_explicit_path_takes_precedence(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        auto = tmp_path / "pombast.toml"
+        auto.write_text('[smelt]\nincludes = ["auto:*"]\n')
+        explicit = tmp_path / "other.toml"
+        explicit.write_text('[smelt]\nincludes = ["explicit:*"]\n')
+        config = PombastConfig.load_default(explicit)
+        assert config.filter.includes == ["explicit:*"]
+
+    def test_auto_discovers_pombast_toml(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "pombast.toml").write_text('[smelt]\nincludes = ["auto:*"]\n')
+        config = PombastConfig.load_default(None)
+        assert config.filter.includes == ["auto:*"]
+
+    def test_falls_back_to_empty_when_no_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = PombastConfig.load_default(None)
+        assert config.filter.includes == []
+        assert config.skip_tests == []
+
+
 class TestMegaMeltConfig:
     def test_defaults(self):
         config = PombastConfig.empty()
@@ -82,11 +103,9 @@ class TestMegaMeltConfig:
         template.write_text("<project/>")
         toml_path = tmp_path / "pombast.toml"
         toml_path.write_text("""\
-[mega-melt]
+[melt]
 java-version = 11
 template = "template.xml"
-
-[mega-melt.filter]
 includes = ["org.foo:*"]
 excludes = ["org.foo:bad"]
 """)

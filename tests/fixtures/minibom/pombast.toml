@@ -1,9 +1,7 @@
-[filter]
+[smelt]
 includes = ["org.scijava:*"]
 excludes = ["org.scijava:legacy-*"]
+skip-tests = ["org.example:legacy-lib"]
 
-[build]
-java-version = 11
-
-[skip-tests]
-components = ["org.example:legacy-lib"]
+[common]
+default-java-version = 11

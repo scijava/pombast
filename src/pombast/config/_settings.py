@@ -48,39 +48,48 @@ class PombastConfig:
         with open(path, "rb") as f:
             data = tomllib.load(f)
 
-        filter_data = data.get("filter", {})
+        smelt_data = data.get("smelt", {})
         filter_config = FilterConfig(
-            includes=filter_data.get("includes", []),
-            excludes=filter_data.get("excludes", []),
+            includes=smelt_data.get("includes", []),
+            excludes=smelt_data.get("excludes", []),
         )
 
-        build_data = data.get("build", {})
-        default_java = build_data.get("default-java-version")
+        common_data = data.get("common", {})
+        default_java = common_data.get("default-java-version")
 
-        mega_melt_data = data.get("mega-melt", {})
-        mega_melt_java = mega_melt_data.get("java-version")
-        template_str = mega_melt_data.get("template")
+        melt_data = data.get("melt", {})
+        melt_java = melt_data.get("java-version")
+        template_str = melt_data.get("template")
         template_path = (path.parent / template_str).resolve() if template_str else None
-        mm_filter_data = mega_melt_data.get("filter", {})
         mega_melt_config = MegaMeltConfig(
-            java_version=int(mega_melt_java) if mega_melt_java is not None else None,
+            java_version=int(melt_java) if melt_java is not None else None,
             template=template_path,
             filter=FilterConfig(
-                includes=mm_filter_data.get("includes", []),
-                excludes=mm_filter_data.get("excludes", []),
+                includes=melt_data.get("includes", []),
+                excludes=melt_data.get("excludes", []),
             ),
         )
 
         return cls(
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
-            repositories=build_data.get("repositories", []),
-            skip_tests=data.get("skip-tests", {}).get("components", []),
+            repositories=common_data.get("repositories", []),
+            skip_tests=smelt_data.get("skip-tests", []),
             remove_tests=data.get("remove-tests", {}),
-            build_properties=build_data.get("properties", {}),
+            build_properties=common_data.get("properties", {}),
             component_overrides={k: v for k, v in data.get("components", {}).items()},
             mega_melt=mega_melt_config,
         )
+
+    @classmethod
+    def load_default(cls, explicit: Path | None) -> PombastConfig:
+        """Load config from explicit path, ./pombast.toml, or defaults."""
+        if explicit is not None:
+            return cls.load(explicit)
+        auto = Path("pombast.toml")
+        if auto.exists():
+            return cls.load(auto)
+        return cls.empty()
 
     @classmethod
     def empty(cls) -> PombastConfig:

@@ -127,7 +127,7 @@ def smelt_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
+    pombast_config = PombastConfig.load_default(config)
     effective_default_java = default_java or pombast_config.default_java
     effective_repositories = pombast_config.repositories + list(repository)
 
@@ -236,7 +236,7 @@ def melt_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
+    pombast_config = PombastConfig.load_default(config)
     effective_java_version = java_version or pombast_config.default_java
     effective_repositories = pombast_config.repositories + list(repository)
 
