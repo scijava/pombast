@@ -217,25 +217,29 @@ class Pipeline:
                     )
                     continue
 
-            try:
-                bare_repo = repo_cache.ensure_ref(component, component.scm_url, tag)
-                shallow_clone(bare_repo, tag, source_dir)
-            except Exception as e:
-                _log.error("%s: clone failed — %s", component.coordinate, e)
-                report.results.append(
-                    BuildResult(
-                        component=component,
-                        status=BuildStatus.ERROR,
-                        skipped_reason=f"clone failed: {e}",
-                    )
-                )
-                continue
-
-            # Patch and rewrite POM.
             pom_file = source_dir / "pom.xml"
             if pom_file.exists():
-                patch_pom_urls(pom_file)
-                rewrite_pom_versions(pom_file, dep_mgmt)
+                _log.info("%s: reusing existing clone", component.coordinate)
+            else:
+                try:
+                    bare_repo = repo_cache.ensure_ref(component, component.scm_url, tag)
+                    shallow_clone(bare_repo, tag, source_dir)
+                except Exception as e:
+                    _log.error("%s: clone failed — %s", component.coordinate, e)
+                    report.results.append(
+                        BuildResult(
+                            component=component,
+                            status=BuildStatus.ERROR,
+                            skipped_reason=f"clone failed: {e}",
+                        )
+                    )
+                    continue
+
+                # Patch and rewrite POM only for a fresh clone; an existing clone
+                # was already rewritten and re-applying would corrupt the pins.
+                if pom_file.exists():
+                    patch_pom_urls(pom_file)
+                    rewrite_pom_versions(pom_file, dep_mgmt)
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
