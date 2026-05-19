@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING, Any, Iterable
 
@@ -98,13 +99,17 @@ def _smelt_cell_data(status: str | None, skipped_reason: str | None) -> dict[str
 def _smelt_row_data(comp_data: dict | None, bom_version: str) -> dict[str, Any]:
     """Build smelt columns data for a single row."""
     if comp_data is None:
-        empty = {"label": "—", "css": "smelt-none"}
+        empty = {"label": "—", "css": "smelt-none", "has_log": False}
         return {"binary": empty, "source": empty, "version_mismatch": False}
     skipped = comp_data.get("skipped_reason")
     mismatch = comp_data.get("version") not in (None, bom_version)
+    binary = _smelt_cell_data(comp_data.get("binary_test"), skipped)
+    binary["has_log"] = bool(comp_data.get("binary_log"))
+    source = _smelt_cell_data(comp_data.get("source_build"), skipped)
+    source["has_log"] = bool(comp_data.get("source_log"))
     return {
-        "binary": _smelt_cell_data(comp_data.get("binary_test"), skipped),
-        "source": _smelt_cell_data(comp_data.get("source_build"), skipped),
+        "binary": binary,
+        "source": source,
         "version_mismatch": mismatch,
     }
 
@@ -153,6 +158,17 @@ def generate_html(
     smelt: dict[str, dict] | None = None,
 ) -> str:
     """Return a complete HTML page with the status dashboard table."""
+    smelt_logs: dict[str, dict[str, str]] = {}
+    if smelt:
+        for ga, comp in smelt.items():
+            entry: dict[str, str] = {}
+            if comp.get("binary_log"):
+                entry["binary"] = comp["binary_log"]
+            if comp.get("source_log"):
+                entry["source"] = comp["source_log"]
+            if entry:
+                smelt_logs[ga] = entry
+
     rows = [_row_data(entry, nexus_base, smelt=smelt) for entry in entries]
     columns = _COLUMNS_BASE + (_COLUMNS_SMELT if smelt is not None else [])
     template = _env.get_template("status.html.j2")
@@ -162,4 +178,5 @@ def generate_html(
         rows=rows,
         header_html=header_html,
         footer_html=footer_html,
+        smelt_logs_json=json.dumps(smelt_logs) if smelt_logs else None,
     )
