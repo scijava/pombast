@@ -113,7 +113,7 @@ Validate the full BOM classpath as a single mega-melt project.
 | `--config PATH` | Path to `pombast.toml` config file |
 | `-o, --output-dir PATH` | Output directory (default: `pombast-output`) |
 | `-f, --force` | Wipe output directory if it already exists |
-| `--min-java N` | Minimum Java version floor |
+| `--java-version N` | Java version to use when validating the BOM |
 | `-v, --verbose` | Debug logging |
 
 ### `pombast smelt BOM`
@@ -132,7 +132,7 @@ Build and test each BOM component against its pinned dependencies.
 | `-f, --force` | Wipe output directory if it already exists |
 | `-s, --skip-build` | Prepare source trees but skip actual builds |
 | `--no-binary-test` | Skip binary compatibility testing |
-| `--min-java N` | Minimum Java version floor for all components |
+| `--default-java N` | Default Java version for components with no declared version |
 | `-v, --verbose` | Debug logging |
 
 ---
@@ -148,7 +148,8 @@ includes = ["org.scijava:*"]
 excludes = ["org.scijava:legacy-*"]
 
 [build]
-min-java-version = 11
+# Java version to use for component builds without a Java version override.
+default-java-version = 11
 repositories = ["scijava.public:https://maven.scijava.org/content/groups/public"]
 properties = {"skipSomePlugin" = "true"}
 

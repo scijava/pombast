@@ -212,8 +212,8 @@ class TestValidate:
 
         _assert_components(report, _ALL_COMPONENTS)
 
-    def test_config_min_java_version(self, tmp_path):
-        """Config file min-java-version should be used if not specified on CLI."""
+    def test_config_default_java(self, tmp_path):
+        """Config file java-version should be used if not specified on CLI."""
         config_path = MINIBOM / "pombast.toml"
 
         pipeline = _make_pipeline_with_config(tmp_path, config_path)

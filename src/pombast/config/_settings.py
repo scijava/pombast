@@ -34,7 +34,7 @@ class PombastConfig:
     """Configuration loaded from a pombast.toml file."""
 
     filter: FilterConfig = field(default_factory=FilterConfig)
-    min_java_version: int | None = None
+    default_java: int | None = None
     repositories: list[str] = field(default_factory=list)
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
@@ -55,7 +55,7 @@ class PombastConfig:
         )
 
         build_data = data.get("build", {})
-        min_java = build_data.get("min-java-version")
+        default_java = build_data.get("default-java-version")
 
         mega_melt_data = data.get("mega-melt", {})
         mega_melt_java = mega_melt_data.get("java-version")
@@ -73,7 +73,7 @@ class PombastConfig:
 
         return cls(
             filter=filter_config,
-            min_java_version=int(min_java) if min_java is not None else None,
+            default_java=int(default_java) if default_java is not None else None,
             repositories=build_data.get("repositories", []),
             skip_tests=data.get("skip-tests", {}).get("components", []),
             remove_tests=data.get("remove-tests", {}),
@@ -93,7 +93,7 @@ class PipelineConfig:
     """Configuration for a smelt (per-component build) pipeline run."""
 
     bom: str
-    min_java_version: int | None = None
+    default_java: int | None = None
     changes: list[str] = field(default_factory=list)
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
@@ -118,6 +118,6 @@ class MeltConfig:
     force: bool = False
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
-    min_java_version: int | None = None
+    default_java: int | None = None
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)

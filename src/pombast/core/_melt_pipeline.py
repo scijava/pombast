@@ -47,7 +47,7 @@ class MeltPipeline:
         _log.info("Mega-melt: %d components after filtering", len(components))
 
         effective_java = (
-            self.config.config.mega_melt.java_version or self.config.min_java_version
+            self.config.config.mega_melt.java_version or self.config.default_java
         )
         java_home = locate_java(effective_java) if effective_java else None
 

@@ -88,10 +88,10 @@ def cli() -> None:
     help="Skip binary compatibility testing (only rebuild from source).",
 )
 @click.option(
-    "--min-java",
+    "--default-java",
     type=int,
     default=None,
-    help="Minimum Java version floor for all components (e.g., 11).",
+    help="Default Java version for components with no declared version (e.g., 11).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def smelt_cmd(
@@ -106,7 +106,7 @@ def smelt_cmd(
     force: bool,
     skip_build: bool,
     no_binary_test: bool,
-    min_java: int | None,
+    default_java: int | None,
     verbose: bool,
 ) -> None:
     """Build and test each BOM component against its pinned dependencies.
@@ -120,12 +120,12 @@ def smelt_cmd(
     )
 
     pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
-    effective_min_java = min_java or pombast_config.min_java_version
+    effective_default_java = default_java or pombast_config.default_java
     effective_repositories = pombast_config.repositories + list(repository)
 
     pipeline_config = PipelineConfig(
         bom=bom,
-        min_java_version=effective_min_java,
+        default_java=effective_default_java,
         changes=list(change),
         includes=list(include),
         excludes=list(exclude),
@@ -195,10 +195,10 @@ def smelt_cmd(
     help="Wipe output directory if it exists.",
 )
 @click.option(
-    "--min-java",
+    "--java-version",
     type=int,
     default=None,
-    help="Minimum Java version floor (e.g., 11).",
+    help="Java version to use for mega-melt (e.g., 11).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def melt_cmd(
@@ -209,7 +209,7 @@ def melt_cmd(
     config: Path | None,
     output_dir: Path,
     force: bool,
-    min_java: int | None,
+    java_version: int | None,
     verbose: bool,
 ) -> None:
     """Validate the full BOM classpath as a single mega-melt project.
@@ -223,7 +223,7 @@ def melt_cmd(
     )
 
     pombast_config = PombastConfig.load(config) if config else PombastConfig.empty()
-    effective_min_java = min_java or pombast_config.min_java_version
+    effective_java_version = java_version or pombast_config.default_java
     effective_repositories = pombast_config.repositories + list(repository)
 
     melt_config = MeltConfig(
@@ -233,7 +233,7 @@ def melt_cmd(
         force=force,
         includes=list(include),
         excludes=list(exclude),
-        min_java_version=effective_min_java,
+        default_java=effective_java_version,
         verbose=verbose,
         config=pombast_config,
     )

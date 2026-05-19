@@ -169,12 +169,9 @@ class Pipeline:
                 if java_version is not None:
                     component = replace(component, java_version=java_version)
 
-            # Apply minimum Java version floor.
-            min_java = self.config.min_java_version
-            if min_java is not None:
-                current = component.java_version or 0
-                if current < min_java:
-                    component = replace(component, java_version=min_java)
+            # Fall back to default Java version if component has none.
+            if component.java_version is None and self.config.default_java is not None:
+                component = replace(component, java_version=self.config.default_java)
 
             if not component.scm_url:
                 _log.warning("%s: no SCM URL — skipping", component.coordinate)

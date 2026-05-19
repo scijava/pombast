@@ -3,7 +3,7 @@ includes = ["org.scijava:*"]
 excludes = ["org.scijava:legacy-*"]
 
 [build]
-min-java-version = 11
+java-version = 11
 
 [skip-tests]
 components = ["org.example:legacy-lib"]
