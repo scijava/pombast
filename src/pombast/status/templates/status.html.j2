@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <title>{{ title }}</title>
 <link type="text/css" rel="stylesheet" href="status.css">
 <link rel="icon" type="image/png" href="favicon.png">
@@ -36,6 +37,10 @@
 <td{% if row.drift.cls %} class="{{ row.drift.cls }}"{% endif %} sorttable_customkey="{{ row.drift.sort_key }}"{% if row.drift.tooltip %} title="{{ row.drift.tooltip }}"{% endif %}>{{ row.drift.html | safe }}</td>
 <td sorttable_customkey="{{ row.action_key }}">{{ row.action }}</td>
 {{ row.badge_html | safe }}
+{%- if row.smelt is defined %}
+<td class="{{ row.smelt.binary.css }}{% if row.smelt.version_mismatch %} smelt-stale{% endif %}">{{ row.smelt.binary.label }}</td>
+<td class="{{ row.smelt.source.css }}{% if row.smelt.version_mismatch %} smelt-stale{% endif %}">{{ row.smelt.source.label }}</td>
+{%- endif %}
 </tr>
 {%- endfor %}
 </table>

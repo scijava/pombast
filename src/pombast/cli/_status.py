@@ -19,6 +19,7 @@ from rich.table import Table
 
 from pombast.config._settings import PombastConfig, parse_repo_spec
 from pombast.core._filter import ComponentFilter
+from pombast.core._smelt_json import load_smelt_components
 from pombast.maven._bom import load_bom
 from pombast.maven._rules import RulesXML
 from pombast.status._drift import drift_text
@@ -83,6 +84,13 @@ console = Console()
     help="Path to vetting timestamps file (G:A <space> YYYYMMDDHHmmss per line).",
 )
 @click.option(
+    "--smelt",
+    "smelt_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Path to smelt.json to overlay binary/source compatibility columns.",
+)
+@click.option(
     "--no-timestamps",
     is_flag=True,
     help="Skip HTTP timestamp fetching for faster (release-only) output.",
@@ -142,6 +150,7 @@ def status_cmd(
     projects: str | None,
     badges: str | None,
     timestamps: str | None,
+    smelt_path: Path | None,
     no_timestamps: bool,
     nexus_base: str | None,
     html_path: Path | None,
@@ -167,6 +176,7 @@ def status_cmd(
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_badges = badges or (str(sc.badges) if sc.badges else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
+    effective_smelt = smelt_path or sc.smelt
     effective_html = html_path or sc.html
     effective_header = header or sc.header
     effective_footer = footer or sc.footer
@@ -200,6 +210,14 @@ def status_cmd(
         load_timestamps_file(effective_timestamps) if effective_timestamps else {}
     )
 
+    smelt_components: dict[str, dict] | None = None
+    if effective_smelt:
+        smelt_components = load_smelt_components(effective_smelt)
+        console.print(
+            f"Loaded smelt data: [bold]{len(smelt_components)}[/bold] components "
+            f"([cyan]{effective_smelt}[/cyan])"
+        )
+
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))
     total = len(cf.filter(bom_data.components))
 
@@ -231,7 +249,7 @@ def status_cmd(
                 description=f"{entry.component.group}:{entry.component.name}",
             )
 
-    _print_status_table(entries)
+    _print_status_table(entries, smelt=smelt_components)
 
     cuts = sum(1 for e in entries if e.action == "Cut")
     bumps = sum(1 for e in entries if e.action == "Bump")
@@ -251,17 +269,49 @@ def status_cmd(
                 nexus_base=nexus_base or "",
                 header_html=header_html,
                 footer_html=footer_html,
+                smelt=smelt_components,
             )
         )
         console.print(f"HTML report written to: [cyan]{effective_html}[/cyan]")
 
 
-def _print_status_table(entries: list[StatusEntry]) -> None:
+def _smelt_cells(comp_data: dict | None, bom_version: str) -> tuple[str, str]:
+    """Return (binary_cell, source_cell) Rich markup for a smelt component entry."""
+    if comp_data is None:
+        return "[dim]—[/dim]", "[dim]—[/dim]"
+
+    mismatch = comp_data.get("version") not in (None, bom_version)
+    suffix = "[yellow]*[/yellow]" if mismatch else ""
+    skipped = comp_data.get("skipped_reason")
+
+    def _render(status: str | None) -> str:
+        if status == "pass":
+            return f"[green]pass[/green]{suffix}"
+        if status in ("fail", "error"):
+            return f"[red]{status}[/red]{suffix}"
+        if status == "skipped":
+            return f"[dim]skip[/dim]{suffix}"
+        if status is None and skipped == "prior success":
+            return f"[green]prior[/green]{suffix}"
+        if status is None and skipped:
+            return f"[dim]skip[/dim]{suffix}"
+        return f"[dim]—[/dim]{suffix}"
+
+    return _render(comp_data.get("binary_test")), _render(comp_data.get("source_build"))
+
+
+def _print_status_table(
+    entries: list[StatusEntry],
+    smelt: dict[str, dict] | None = None,
+) -> None:
     table = Table(title="BOM Status", show_lines=False)
     table.add_column("Component", style="cyan", no_wrap=True)
     table.add_column("Release", justify="right")
     table.add_column("Drift", justify="right")
     table.add_column("Action", justify="left")
+    if smelt is not None:
+        table.add_column("Binary", justify="center")
+        table.add_column("Source", justify="center")
 
     for e in entries:
         latest = e.latest_version or e.bom_version
@@ -281,11 +331,23 @@ def _print_status_table(entries: list[StatusEntry]) -> None:
             "Bump": "[yellow]Bump[/yellow]",
             "None": "[dim]—[/dim]",
         }[e.action]
-        table.add_row(
+        row: list[str] = [
             f"{e.component.group}:{e.component.name}",
             release_str,
             drift_cell,
             action_str,
-        )
+        ]
+        if smelt is not None:
+            ga = f"{e.component.group}:{e.component.name}"
+            binary_cell, source_cell = _smelt_cells(smelt.get(ga), e.bom_version)
+            row.extend([binary_cell, source_cell])
+        table.add_row(*row)
 
     console.print(table)
+
+    if smelt is not None and any(
+        smelt.get(f"{e.component.group}:{e.component.name}", {}).get("version") not in
+        (None, e.bom_version)
+        for e in entries
+    ):
+        console.print("[dim][yellow]*[/yellow] smelt result is from a different version[/dim]")

@@ -93,3 +93,10 @@ def write_json(report: ValidationReport, path: Path) -> None:
     """Write report as pretty-printed JSON to path."""
     data = report_to_dict(report)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def load_smelt_components(path: Path) -> dict[str, dict]:
+    """Load smelt.json, returning a mapping of G:A to per-component data."""
+    with open(path) as f:
+        data = json.load(f)
+    return data.get("components", {})
