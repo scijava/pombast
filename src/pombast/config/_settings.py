@@ -12,6 +12,21 @@ else:
     import tomli as tomllib
 
 
+def parse_repo_spec(spec: str, fallback_id: str) -> tuple[str, str]:
+    """Parse 'id=url' or bare 'url'; return (repo_id, url)."""
+    name, sep, url = spec.partition("=")
+    return (name, url) if sep else (fallback_id, spec)
+
+
+def parse_repo_specs(specs: list[str]) -> dict[str, str]:
+    """Parse a list of 'id=url' or bare 'url' strings into a dict."""
+    repos: dict[str, str] = {}
+    for i, spec in enumerate(specs):
+        repo_id, url = parse_repo_spec(spec, f"repo{i}")
+        repos[repo_id] = url
+    return repos
+
+
 @dataclass
 class FilterConfig:
     """Include/exclude patterns from config file."""
@@ -48,7 +63,7 @@ class PombastConfig:
 
     filter: FilterConfig = field(default_factory=FilterConfig)
     default_java: int | None = None
-    repositories: list[str] = field(default_factory=list)
+    repositories: dict[str, str] = field(default_factory=dict)
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
@@ -102,7 +117,7 @@ class PombastConfig:
         return cls(
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
-            repositories=common_data.get("repositories", []),
+            repositories=parse_repo_specs(common_data.get("repositories", [])),
             skip_tests=smelt_data.get("skip-tests", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=common_data.get("properties", {}),
@@ -136,7 +151,7 @@ class PipelineConfig:
     changes: list[str] = field(default_factory=list)
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
-    repositories: list[str] = field(default_factory=list)
+    repositories: dict[str, str] = field(default_factory=dict)
     output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
     success_cache_dir: Path | None = None
     prune: bool = False
@@ -152,7 +167,7 @@ class MeltConfig:
     """Configuration for a melt (mega-melt BOM validation) pipeline run."""
 
     bom: str
-    repositories: list[str] = field(default_factory=list)
+    repositories: dict[str, str] = field(default_factory=dict)
     output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
     force: bool = False
     includes: list[str] = field(default_factory=list)

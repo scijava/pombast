@@ -145,7 +145,7 @@ Create a `pombast.toml` for reusable settings:
 [common]
 # Shared settings used by both smelt and melt.
 default-java-version = 11
-repositories = ["scijava.public:https://maven.scijava.org/content/groups/public"]
+repositories = ["scijava.public=https://maven.scijava.org/content/groups/public"]
 properties = {"skipSomePlugin" = "true"}
 
 [smelt]

@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from pombast import __version__
-from pombast.config._settings import MeltConfig, PipelineConfig, PombastConfig
+from pombast.config._settings import MeltConfig, PipelineConfig, PombastConfig, parse_repo_spec
 from pombast.core._component import BuildStatus
 from pombast.core._melt_pipeline import MeltPipeline
 from pombast.core._pipeline import Pipeline
@@ -129,7 +129,10 @@ def smelt_cmd(
 
     pombast_config = PombastConfig.load_default(config)
     effective_default_java = default_java or pombast_config.default_java
-    effective_repositories = pombast_config.repositories + list(repository)
+    effective_repositories = {
+        **pombast_config.repositories,
+        **{k: v for i, spec in enumerate(repository) for k, v in [parse_repo_spec(spec, f"repo{i}")]},
+    }
 
     pipeline_config = PipelineConfig(
         bom=bom,
@@ -238,7 +241,10 @@ def melt_cmd(
 
     pombast_config = PombastConfig.load_default(config)
     effective_java_version = java_version or pombast_config.default_java
-    effective_repositories = pombast_config.repositories + list(repository)
+    effective_repositories = {
+        **pombast_config.repositories,
+        **{k: v for i, spec in enumerate(repository) for k, v in [parse_repo_spec(spec, f"repo{i}")]},
+    }
 
     melt_config = MeltConfig(
         bom=bom,

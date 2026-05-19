@@ -311,21 +311,5 @@ class Pipeline:
 
     def _build_repo_map(self) -> dict[str, str]:
         """Build the remote repository map from config and CLI args."""
-        repos = {"central": "https://repo1.maven.org/maven2"}
-        for i, repo_str in enumerate(self.config.repositories):
-            repo_id, url = _parse_repo_string(repo_str, f"repo{i}")
-            repos[repo_id] = url
-        return repos
+        return {"central": "https://repo1.maven.org/maven2", **self.config.repositories}
 
-
-def _parse_repo_string(repo_str: str, fallback_id: str) -> tuple[str, str]:
-    """Parse 'id:url' or bare 'url'; return (repo_id, url).
-
-    Handles both 'https://host/path' (bare URL) and
-    'myrepo:https://host/path' (id-prefixed) formats.
-    """
-    scheme_pos = repo_str.find("://")
-    if scheme_pos > 0 and ":" in repo_str[:scheme_pos]:
-        sep = repo_str.index(":")
-        return repo_str[:sep], repo_str[sep + 1 :]
-    return fallback_id, repo_str

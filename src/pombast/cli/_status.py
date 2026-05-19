@@ -17,7 +17,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from pombast.config._settings import PombastConfig
+from pombast.config._settings import PombastConfig, parse_repo_spec
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._rules import RulesXML
@@ -161,7 +161,8 @@ def status_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    sc = PombastConfig.load_default(config).status
+    pombast_config = PombastConfig.load_default(config)
+    sc = pombast_config.status
     effective_rules = rules or (str(sc.rules) if sc.rules else None)
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_badges = badges or (str(sc.badges) if sc.badges else None)
@@ -172,14 +173,11 @@ def status_cmd(
     effective_max_age = 0 if refresh else max_age
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
-    # User-specified repos come first; load_bom appends central as the last resort.
-    repos = {}
-    for i, spec in enumerate(repository):
-        name, sep, url = spec.partition("=")
-        if sep:
-            repos[name] = url
-        else:
-            repos[f"repo{i}"] = spec
+    # Config repos come first, then CLI repos; load_bom appends central as last resort.
+    repos = {
+        **pombast_config.repositories,
+        **{k: v for i, spec in enumerate(repository) for k, v in [parse_repo_spec(spec, f"repo{i}")]},
+    }
 
     bom_data = load_bom(bom, repositories=repos)
     console.print(f"Loaded [bold]{len(bom_data.components)}[/bold] components.")

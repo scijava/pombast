@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from pombast.config._settings import PipelineConfig
+from pombast.config._settings import PipelineConfig, parse_repo_specs
 from pombast.core._component import BuildStatus
 from pombast.core._pipeline import Pipeline
 
@@ -172,7 +172,7 @@ class TestValidate:
         pipeline = _make_pipeline(
             tmp_path,
             includes=["org.scijava:scijava-common"],
-            repositories=["https://repo1.maven.org/maven2"],
+            repositories=parse_repo_specs(["https://repo1.maven.org/maven2"]),
         )
         report = pipeline.run()
 
@@ -183,10 +183,10 @@ class TestValidate:
         pipeline = _make_pipeline(
             tmp_path,
             includes=["org.scijava:scijava-common"],
-            repositories=[
+            repositories=parse_repo_specs([
                 "https://repo1.maven.org/maven2",
                 "https://repo.jfrog.org/artifactory",
-            ],
+            ]),
         )
         report = pipeline.run()
 

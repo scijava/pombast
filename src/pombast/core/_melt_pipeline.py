@@ -86,17 +86,4 @@ class MeltPipeline:
         return ComponentFilter(includes=includes, excludes=excludes)
 
     def _build_repo_map(self) -> dict[str, str]:
-        repos = {"central": "https://repo1.maven.org/maven2"}
-        for i, repo_str in enumerate(self.config.repositories):
-            repo_id, url = _parse_repo_string(repo_str, f"repo{i}")
-            repos[repo_id] = url
-        return repos
-
-
-def _parse_repo_string(repo_str: str, fallback_id: str) -> tuple[str, str]:
-    """Parse 'id:url' or bare 'url'; return (repo_id, url)."""
-    scheme_pos = repo_str.find("://")
-    if scheme_pos > 0 and ":" in repo_str[:scheme_pos]:
-        sep = repo_str.index(":")
-        return repo_str[:sep], repo_str[sep + 1 :]
-    return fallback_id, repo_str
+        return {"central": "https://repo1.maven.org/maven2", **self.config.repositories}
