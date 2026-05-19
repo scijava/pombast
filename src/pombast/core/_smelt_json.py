@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,20 +11,24 @@ if TYPE_CHECKING:
     from pombast.core._component import BuildResult, BuildStatus, ValidationReport
 
 _SCHEMA_VERSION = 1
-_TAIL_LINES = 50
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_FALLBACK_TAIL = 50
 
 
-def _strip_ansi(text: str) -> str:
-    return _ANSI_RE.sub("", text)
+def _extract_log(log_path: Path | None) -> str | None:
+    """Return error lines from a Maven log, falling back to the last N lines.
 
-
-def _tail_log(log_path: Path | None, n: int = _TAIL_LINES) -> str | None:
+    Filters to lines prefixed with [ERROR] (Maven's standard error marker).
+    Falls back to the last _FALLBACK_TAIL non-empty lines when no [ERROR]
+    lines are present, so failures without [ERROR] output still surface something.
+    """
     if log_path is None or not log_path.exists():
         return None
-    text = _strip_ansi(log_path.read_text(errors="replace"))
-    lines = [ln for ln in text.splitlines() if ln.strip()]
-    return "\n".join(lines[-n:]) if lines else None
+    lines = log_path.read_text(errors="replace").splitlines()
+    error_lines = [ln for ln in lines if ln.startswith("[ERROR]")]
+    if error_lines:
+        return "\n".join(error_lines)
+    non_empty = [ln for ln in lines if ln.strip()]
+    return "\n".join(non_empty[-_FALLBACK_TAIL:]) if non_empty else None
 
 
 def _status_str(status: BuildStatus | None) -> str | None:
@@ -57,10 +60,10 @@ def _component_entry(result: BuildResult) -> dict:
         "binary_test": binary_str,
         "source_build": source_str,
         "skipped_reason": result.skipped_reason,
-        "binary_log": _tail_log(result.binary_log_path)
+        "binary_log": _extract_log(result.binary_log_path)
         if _is_failing(result.binary_status)
         else None,
-        "source_log": _tail_log(result.log_path)
+        "source_log": _extract_log(result.log_path)
         if _is_failing(result.status)
         else None,
     }
