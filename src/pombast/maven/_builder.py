@@ -168,11 +168,12 @@ class MavenComponentBuilder:
                 return (BuildStatus.SKIPPED, None)
 
             # Step 3: Unpack JAR into target/classes.
-            # Wipe first so no stale class files from a prior build remain
-            # alongside the extracted binary.
-            classes_dir = source.source_dir / "target" / "classes"
-            if classes_dir.exists():
-                shutil.rmtree(classes_dir)
+            # Wipe the entire target/ dir first — generated sources, test-classes,
+            # or other artifacts from a prior tag would otherwise linger.
+            target_dir = source.source_dir / "target"
+            if target_dir.exists():
+                shutil.rmtree(target_dir)
+            classes_dir = target_dir / "classes"
             classes_dir.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(jar_path, "r") as zf:
                 zf.extractall(classes_dir)
