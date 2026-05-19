@@ -217,10 +217,16 @@ class Pipeline:
                     )
                     continue
 
-            pom_file = source_dir / "pom.xml"
-            if pom_file.exists():
-                _log.info("%s: reusing existing clone", component.coordinate)
+            tag_file = source_dir / ".pombast-tag"
+            if tag_file.exists() and tag_file.read_text().strip() == tag:
+                _log.info("%s: reusing existing clone at %s", component.coordinate, tag)
             else:
+                if source_dir.exists():
+                    _log.info(
+                        "%s: tag mismatch or missing sentinel — re-cloning",
+                        component.coordinate,
+                    )
+                    shutil.rmtree(source_dir)
                 try:
                     bare_repo = repo_cache.ensure_ref(component, component.scm_url, tag)
                     shallow_clone(bare_repo, tag, source_dir)
@@ -235,11 +241,14 @@ class Pipeline:
                     )
                     continue
 
-                # Patch and rewrite POM only for a fresh clone; an existing clone
-                # was already rewritten and re-applying would corrupt the pins.
+                # Patch and rewrite POM only for a fresh clone; re-applying to an
+                # already-patched POM would corrupt the pinned versions.
+                pom_file = source_dir / "pom.xml"
                 if pom_file.exists():
                     patch_pom_urls(pom_file)
                     rewrite_pom_versions(pom_file, dep_mgmt)
+
+                tag_file.write_text(tag + "\n")
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
