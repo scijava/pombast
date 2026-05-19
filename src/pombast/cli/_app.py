@@ -93,6 +93,13 @@ def cli() -> None:
     default=None,
     help="Default Java version for components with no declared version (e.g., 11).",
 )
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Write smelt results as JSON to this file.",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def smelt_cmd(
     bom: str,
@@ -107,6 +114,7 @@ def smelt_cmd(
     skip_build: bool,
     no_binary_test: bool,
     default_java: int | None,
+    json_path: Path | None,
     verbose: bool,
 ) -> None:
     """Build and test each BOM component against its pinned dependencies.
@@ -150,6 +158,12 @@ def smelt_cmd(
 
     console.print()
     console.print(report.summary())
+
+    if json_path:
+        from pombast.core._smelt_json import write_json
+
+        write_json(report, json_path)
+        console.print(f"JSON report written to: [cyan]{json_path}[/cyan]")
 
     failures = len(report.failures) + len(report.errors)
     sys.exit(min(failures, 254))
