@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 import zipfile
 from dataclasses import dataclass
@@ -167,7 +168,11 @@ class MavenComponentBuilder:
                 return (BuildStatus.SKIPPED, None)
 
             # Step 3: Unpack JAR into target/classes.
+            # Wipe first so no stale class files from a prior build remain
+            # alongside the extracted binary.
             classes_dir = source.source_dir / "target" / "classes"
+            if classes_dir.exists():
+                shutil.rmtree(classes_dir)
             classes_dir.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(jar_path, "r") as zf:
                 zf.extractall(classes_dir)
