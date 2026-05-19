@@ -21,6 +21,19 @@ class FilterConfig:
 
 
 @dataclass
+class StatusConfig:
+    """Configuration for the status command."""
+
+    rules: Path | None = None
+    projects: Path | None = None
+    badges: Path | None = None
+    timestamps: Path | None = None
+    html: Path | None = None
+    header: Path | None = None
+    footer: Path | None = None
+
+
+@dataclass
 class MegaMeltConfig:
     """Configuration for the mega-melt BOM validation phase."""
 
@@ -41,6 +54,7 @@ class PombastConfig:
     build_properties: dict[str, str] = field(default_factory=dict)
     component_overrides: dict[str, dict[str, object]] = field(default_factory=dict)
     mega_melt: MegaMeltConfig = field(default_factory=MegaMeltConfig)
+    status: StatusConfig = field(default_factory=StatusConfig)
 
     @classmethod
     def load(cls, path: Path) -> PombastConfig:
@@ -70,6 +84,21 @@ class PombastConfig:
             ),
         )
 
+        def resolve(section: dict, key: str) -> Path | None:
+            s = section.get(key)
+            return (path.parent / s).resolve() if s else None
+
+        status_data = data.get("status", {})
+        status_config = StatusConfig(
+            rules=resolve(status_data, "rules"),
+            projects=resolve(status_data, "projects"),
+            badges=resolve(status_data, "badges"),
+            timestamps=resolve(status_data, "timestamps"),
+            html=resolve(status_data, "html"),
+            header=resolve(status_data, "header"),
+            footer=resolve(status_data, "footer"),
+        )
+
         return cls(
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
@@ -79,6 +108,7 @@ class PombastConfig:
             build_properties=common_data.get("properties", {}),
             component_overrides={k: v for k, v in data.get("components", {}).items()},
             mega_melt=mega_melt_config,
+            status=status_config,
         )
 
     @classmethod

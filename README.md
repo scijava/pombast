@@ -167,9 +167,20 @@ skip-tests = ["org.example:legacy-lib"]
 java-version = 11
 template = "tests/mega-melt-template.xml"
 excludes = ["org.example:problematic-artifact"]
+
+[status]
+# Settings for the status command.
+rules = "rules.xml"
+projects = "projects.txt"
+badges = "ci-badges.txt"
+timestamps = "timestamps.txt"
+html = "index.html"
+header = "header.html"
+footer = "footer.html"
 ```
 
-Pass it with `--config pombast.toml`.
+If `pombast.toml` exists in the current directory it is loaded automatically.
+Pass `--config PATH` to use a different file.
 
 ---
 

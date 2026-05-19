@@ -17,6 +17,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from pombast.config._settings import PombastConfig
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._rules import RulesXML
@@ -54,6 +55,12 @@ console = Console()
     "--repository",
     multiple=True,
     help="Additional remote Maven repository URL (repeatable). Optionally prefix with a name: name=URL.",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Path to pombast.toml configuration file.",
 )
 @click.option(
     "--rules",
@@ -130,6 +137,7 @@ def status_cmd(
     include: tuple[str, ...],
     exclude: tuple[str, ...],
     repository: tuple[str, ...],
+    config: Path | None,
     rules: str | None,
     projects: str | None,
     badges: str | None,
@@ -153,6 +161,14 @@ def status_cmd(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
+    sc = PombastConfig.load_default(config).status
+    effective_rules = rules or (str(sc.rules) if sc.rules else None)
+    effective_projects = projects or (str(sc.projects) if sc.projects else None)
+    effective_badges = badges or (str(sc.badges) if sc.badges else None)
+    effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
+    effective_html = html_path or sc.html
+    effective_header = header or sc.header
+    effective_footer = footer or sc.footer
     effective_max_age = 0 if refresh else max_age
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
@@ -174,15 +190,17 @@ def status_cmd(
             f"(use [bold]--refresh[/bold] to bypass)"
         )
 
-    if rules:
-        console.print(f"Loading rules: [cyan]{rules}[/cyan]")
-        rules_xml = RulesXML.load(rules)
+    if effective_rules:
+        console.print(f"Loading rules: [cyan]{effective_rules}[/cyan]")
+        rules_xml = RulesXML.load(effective_rules)
     else:
         rules_xml = RulesXML.empty()
 
-    proj_ov = load_kv_file(projects) if projects else {}
-    badge_ov = load_kv_file(badges) if badges else {}
-    vetting_ov = load_timestamps_file(timestamps) if timestamps else {}
+    proj_ov = load_kv_file(effective_projects) if effective_projects else {}
+    badge_ov = load_kv_file(effective_badges) if effective_badges else {}
+    vetting_ov = (
+        load_timestamps_file(effective_timestamps) if effective_timestamps else {}
+    )
 
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))
     total = len(cf.filter(bom_data.components))
@@ -226,10 +244,10 @@ def status_cmd(
         f"[dim]None {len(entries) - cuts - bumps}[/dim]"
     )
 
-    if html_path:
-        header_html = header.read_text() if header else ""
-        footer_html = footer.read_text() if footer else ""
-        html_path.write_text(
+    if effective_html:
+        header_html = effective_header.read_text() if effective_header else ""
+        footer_html = effective_footer.read_text() if effective_footer else ""
+        effective_html.write_text(
             generate_html(
                 entries,
                 nexus_base=nexus_base or "",
@@ -237,7 +255,7 @@ def status_cmd(
                 footer_html=footer_html,
             )
         )
-        console.print(f"HTML report written to: [cyan]{html_path}[/cyan]")
+        console.print(f"HTML report written to: [cyan]{effective_html}[/cyan]")
 
 
 def _print_status_table(entries: list[StatusEntry]) -> None:
