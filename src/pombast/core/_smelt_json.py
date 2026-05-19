@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,19 +13,26 @@ if TYPE_CHECKING:
 
 _SCHEMA_VERSION = 1
 _FALLBACK_TAIL = 50
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
 
 
 def _extract_log(log_path: Path | None) -> str | None:
     """Return error lines from a Maven log, falling back to the last N lines.
 
-    Filters to lines prefixed with [ERROR] (Maven's standard error marker).
-    Falls back to the last _FALLBACK_TAIL non-empty lines when no [ERROR]
-    lines are present, so failures without [ERROR] output still surface something.
+    Filters to lines whose ANSI-stripped form starts with [ERROR] (Maven's
+    standard error marker), preserving ANSI codes in the returned content so
+    the browser can render colors via ansi_up or similar.  Falls back to the
+    last _FALLBACK_TAIL non-empty lines when no [ERROR] lines are present, so
+    failures without [ERROR] output still surface something.
     """
     if log_path is None or not log_path.exists():
         return None
     lines = log_path.read_text(errors="replace").splitlines()
-    error_lines = [ln for ln in lines if ln.startswith("[ERROR]")]
+    error_lines = [ln for ln in lines if _strip_ansi(ln).startswith("[ERROR]")]
     if error_lines:
         return "\n".join(error_lines)
     non_empty = [ln for ln in lines if ln.strip()]

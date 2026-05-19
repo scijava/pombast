@@ -21,6 +21,7 @@ def run_maven(
     log_path: Path | None = None,
     timeout: int | None = None,
     skip_enforcer: bool = True,
+    color: bool = False,
 ) -> subprocess.CompletedProcess:
     """Run a Maven command.
 
@@ -39,6 +40,9 @@ def run_maven(
         CompletedProcess with stdout/stderr.
     """
     cmd = ["mvn"]
+
+    if color:
+        cmd.extend(["--color", "always"])
 
     if skip_enforcer:
         cmd.append("-Denforcer.skip")

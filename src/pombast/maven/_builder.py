@@ -95,6 +95,7 @@ class MavenComponentBuilder:
                 java_home=java_home,
                 extra_properties=self.extra_properties,
                 log_path=source_log_path,
+                color=True,
             )
             duration = time.monotonic() - start
 
@@ -184,6 +185,7 @@ class MavenComponentBuilder:
                     "maven.resources.skip": "true",
                 },
                 log_path=log_path,
+                color=True,
             )
 
             if test_result.returncode == 0:
