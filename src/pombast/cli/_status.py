@@ -176,10 +176,10 @@ def status_cmd(
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_badges = badges or (str(sc.badges) if sc.badges else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
-    effective_smelt = smelt_path or sc.smelt
     effective_html = html_path or sc.html
     effective_header = header or sc.header
     effective_footer = footer or sc.footer
+    effective_nexus_base = nexus_base or sc.nexus_base
     effective_max_age = 0 if refresh else max_age
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
@@ -211,11 +211,11 @@ def status_cmd(
     )
 
     smelt_components: dict[str, dict] | None = None
-    if effective_smelt:
-        smelt_components = load_smelt_components(effective_smelt)
+    if smelt_path:
+        smelt_components = load_smelt_components(smelt_path)
         console.print(
             f"Loaded smelt data: [bold]{len(smelt_components)}[/bold] components "
-            f"([cyan]{effective_smelt}[/cyan])"
+            f"([cyan]{smelt_path}[/cyan])"
         )
 
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))
@@ -266,10 +266,9 @@ def status_cmd(
         effective_html.write_text(
             generate_html(
                 entries,
-                nexus_base=nexus_base or "",
+                nexus_base=effective_nexus_base,
                 header_html=header_html,
                 footer_html=footer_html,
-                smelt=smelt_components,
             )
         )
         console.print(f"HTML report written to: [cyan]{effective_html}[/cyan]")

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from typing import TYPE_CHECKING, Any, Iterable
 
@@ -14,8 +13,7 @@ if TYPE_CHECKING:
     from pombast.status._entry import StatusEntry
 
 
-_COLUMNS_BASE = ["Artifact", "Release", "Drift", "Action", "Build"]
-_COLUMNS_SMELT = ["Binary", "Source"]
+_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build"]
 
 _env = Environment(
     loader=PackageLoader("pombast.status", "templates"),
@@ -81,51 +79,14 @@ def _drift_data(entry: StatusEntry) -> dict[str, Any]:
     }
 
 
-def _smelt_cell_data(status: str | None, skipped_reason: str | None) -> dict[str, str]:
-    """Return {label, css} for a single smelt result cell."""
-    if status == "pass":
-        return {"label": "pass", "css": "smelt-pass"}
-    if status in ("fail", "error"):
-        return {"label": status, "css": "smelt-fail"}
-    if status == "skipped":
-        return {"label": "skip", "css": "smelt-skip"}
-    if status is None and skipped_reason == "prior success":
-        return {"label": "prior", "css": "smelt-pass"}
-    if status is None and skipped_reason:
-        return {"label": "skip", "css": "smelt-skip"}
-    return {"label": "—", "css": "smelt-none"}
-
-
-def _smelt_row_data(comp_data: dict | None, bom_version: str) -> dict[str, Any]:
-    """Build smelt columns data for a single row."""
-    if comp_data is None:
-        empty = {"label": "—", "css": "smelt-none", "has_log": False}
-        return {"binary": empty, "source": empty, "version_mismatch": False}
-    skipped = comp_data.get("skipped_reason")
-    mismatch = comp_data.get("version") not in (None, bom_version)
-    binary = _smelt_cell_data(comp_data.get("binary_test"), skipped)
-    binary["has_log"] = bool(comp_data.get("binary_log"))
-    source = _smelt_cell_data(comp_data.get("source_build"), skipped)
-    source["has_log"] = bool(comp_data.get("source_log"))
-    return {
-        "binary": binary,
-        "source": source,
-        "version_mismatch": mismatch,
-    }
-
-
-def _row_data(
-    entry: StatusEntry,
-    nexus_base: str,
-    smelt: dict[str, dict] | None = None,
-) -> dict[str, Any]:
+def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
     g = entry.component.group
     a = entry.component.name
     bom_v = entry.bom_version
     latest_v = entry.latest_version or bom_v
     action_key = {"Cut": 1, "Bump": 2, "None": 3}[entry.action]
 
-    row: dict[str, Any] = {
+    return {
         "ga": f"{g}:{a}",
         "group_css": _css_safe(g),
         "artifact_css": _css_safe(a),
@@ -142,10 +103,6 @@ def _row_data(
         "action_key": action_key,
         "badge_html": entry.badge_html or "<td>-</td>",
     }
-    if smelt is not None:
-        comp_data = smelt.get(f"{g}:{a}")
-        row["smelt"] = _smelt_row_data(comp_data, bom_v)
-    return row
 
 
 def generate_html(
@@ -155,28 +112,14 @@ def generate_html(
     title: str = "SciJava software status",
     header_html: str = "",
     footer_html: str = "",
-    smelt: dict[str, dict] | None = None,
 ) -> str:
     """Return a complete HTML page with the status dashboard table."""
-    smelt_logs: dict[str, dict[str, str]] = {}
-    if smelt:
-        for ga, comp in smelt.items():
-            entry: dict[str, str] = {}
-            if comp.get("binary_log"):
-                entry["binary"] = comp["binary_log"]
-            if comp.get("source_log"):
-                entry["source"] = comp["source_log"]
-            if entry:
-                smelt_logs[ga] = entry
-
-    rows = [_row_data(entry, nexus_base, smelt=smelt) for entry in entries]
-    columns = _COLUMNS_BASE + (_COLUMNS_SMELT if smelt is not None else [])
+    rows = [_row_data(entry, nexus_base) for entry in entries]
     template = _env.get_template("status.html.j2")
     return template.render(
         title=title,
-        columns=columns,
+        columns=_COLUMNS,
         rows=rows,
         header_html=header_html,
         footer_html=footer_html,
-        smelt_logs_json=json.dumps(smelt_logs) if smelt_logs else None,
     )

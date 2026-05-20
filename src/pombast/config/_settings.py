@@ -43,10 +43,10 @@ class StatusConfig:
     projects: Path | None = None
     badges: Path | None = None
     timestamps: Path | None = None
-    smelt: Path | None = None
     html: Path | None = None
     header: Path | None = None
     footer: Path | None = None
+    nexus_base: str = ""
 
 
 @dataclass
@@ -110,10 +110,10 @@ class PombastConfig:
             projects=resolve(status_data, "projects"),
             badges=resolve(status_data, "badges"),
             timestamps=resolve(status_data, "timestamps"),
-            smelt=resolve(status_data, "smelt"),
             html=resolve(status_data, "html"),
             header=resolve(status_data, "header"),
             footer=resolve(status_data, "footer"),
+            nexus_base=status_data.get("nexus-base", ""),
         )
 
         return cls(
