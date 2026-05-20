@@ -2,8 +2,10 @@
 
 from pombast.cli._app import cli
 from pombast.cli._status import status_cmd
+from pombast.cli._team import team_cmd
 
 cli.add_command(status_cmd)
+cli.add_command(team_cmd)
 
 
 def main():

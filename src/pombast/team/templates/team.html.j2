@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<link type="text/css" rel="stylesheet" href="status.css">
+<link rel="icon" type="image/png" href="favicon.png">
+<script type="text/javascript" src="sorttable.js"></script>
+<style>
+td.nonzero { color: firebrick; font-weight: bold; }
+td.zero { color: #999; }
+td.total-cell { font-weight: bold; border-left: 1px solid gray; }
+th.role-header { text-align: center; }
+</style>
+</head>
+<body>
+<script type="text/javascript" src="sortable-badges.js"></script>
+<!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
+<span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
+{%- if generated %}
+<p style="margin: 0.5em 1em; font-size: 0.85em; color: #555;">Generated: {{ generated }}</p>
+{%- endif %}
+<table class="sortable">
+<tr>
+<th>Developer</th>
+<th class="role-header" title="Open PRs awaiting review (reviewer role)">PRs&nbsp;to&nbsp;review</th>
+<th class="role-header" title="Open issues needing response, excluding &quot;question&quot; label (support role)">Issues&nbsp;to&nbsp;answer</th>
+<th class="role-header" title="Open issues labeled &quot;bug&quot; (debugger role)">Bugs&nbsp;to&nbsp;fix</th>
+<th class="role-header" title="Open issues labeled &quot;enhancement&quot;, excluding unscheduled milestone (developer role)">Features&nbsp;requested</th>
+<th class="role-header" title="Components with unreleased commits (maintainer role)">Releases&nbsp;needed</th>
+<th class="role-header" title="Sum of all role columns">Total</th>
+<th class="role-header" title="Number of BOM components this developer is involved with (hover for list)">Components</th>
+</tr>
+{%- for row in rows %}
+<tr>
+<td>{{ row.dev_link | safe }}</td>
+<td class="{{ 'nonzero' if row.reviewer_prs > 0 else 'zero' }}">{{ row.reviewer_prs }}</td>
+<td class="{{ 'nonzero' if row.support_issues > 0 else 'zero' }}">{{ row.support_issues }}</td>
+<td class="{{ 'nonzero' if row.debugger_bugs > 0 else 'zero' }}">{{ row.debugger_bugs }}</td>
+<td class="{{ 'nonzero' if row.developer_features > 0 else 'zero' }}">{{ row.developer_features }}</td>
+<td class="{{ 'nonzero' if row.maintainer_releases > 0 else 'zero' }}">{{ row.maintainer_releases }}</td>
+<td class="total-cell">{{ row.total }}</td>
+<td title="{{ row.components | join(', ') }}">{{ row.component_count }}</td>
+</tr>
+{%- endfor %}
+</table>
+<p style="margin: 1em; font-size: 0.8em; color: #777;">
+  <b>Note:</b> Lead developers are counted in all role columns for each of their components.
+  GitHub data excludes draft PRs and issues labeled &ldquo;question&rdquo;.
+  Enhancement counts exclude issues with milestone &ldquo;unscheduled&rdquo;.
+</p>
+</body>
+</html>
