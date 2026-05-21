@@ -226,12 +226,24 @@ def team_cmd(
             f"\n[bold]Phase 3:[/bold] Fetching GitHub data for "
             f"[bold]{len(orgs)}[/bold] org(s): {', '.join(sorted(orgs))}"
         )
-        repo_stats = fetch_repo_stats(
-            orgs,
-            token=token,
-            refresh=refresh,
-            progress=lambda more: console.print(".", end="" if more else "\n"),
-        )
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as gh_progress:
+            task = gh_progress.add_task("GitHub…", total=None)
+
+            def _gh_progress(fetched: int, total: int) -> None:
+                gh_progress.update(task, completed=fetched, total=total)
+
+            repo_stats = fetch_repo_stats(
+                orgs,
+                token=token,
+                refresh=refresh,
+                progress=_gh_progress,
+            )
         console.print(f"  Got stats for {len(repo_stats)} repos.")
 
     # Phase 4: aggregate and display
