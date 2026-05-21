@@ -226,7 +226,12 @@ def team_cmd(
             f"\n[bold]Phase 3:[/bold] Fetching GitHub data for "
             f"[bold]{len(orgs)}[/bold] org(s): {', '.join(sorted(orgs))}"
         )
-        repo_stats = fetch_repo_stats(orgs, token=token)
+        repo_stats = fetch_repo_stats(
+            orgs,
+            token=token,
+            refresh=refresh,
+            progress=lambda more: console.print(".", end="" if more else "\n"),
+        )
         console.print(f"  Got stats for {len(repo_stats)} repos.")
 
     # Phase 4: aggregate and display
