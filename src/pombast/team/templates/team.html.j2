@@ -11,6 +11,24 @@ td.nonzero { color: firebrick; font-weight: bold; }
 td.zero { color: #999; }
 td.total-cell { font-weight: bold; border-left: 1px solid gray; }
 th.role-header { text-align: center; }
+{%- if popup_data_json %}
+td.has-popup { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+td.has-popup:hover { filter: brightness(1.3); }
+#team-modal { display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; }
+#team-modal.open { display: flex; }
+#team-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); }
+#team-box { position: relative; z-index: 1; background: #fff; border-radius: 6px; max-width: 700px; width: 90vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.3); overflow: hidden; }
+#team-header { display: flex; align-items: center; gap: .5em; padding: .6em 1em; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+#team-title { flex: 1; font-weight: bold; font-size: .95em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#team-close { background: none; border: none; color: #888; font-size: 1.4em; line-height: 1; cursor: pointer; padding: 0 .15em; flex-shrink: 0; }
+#team-close:hover { color: #333; }
+#team-list { margin: 0; padding: .75em 1em; overflow-y: auto; flex: 1; list-style: none; }
+#team-list li { padding: .3em 0; border-bottom: 1px solid #f0f0f0; font-size: .9em; }
+#team-list li:last-child { border-bottom: none; }
+#team-list li a { color: #0366d6; text-decoration: none; }
+#team-list li a:hover { text-decoration: underline; }
+.popup-repo { color: #888; font-size: .85em; margin-left: .4em; }
+{%- endif %}
 </style>
 </head>
 <body>
@@ -32,13 +50,13 @@ th.role-header { text-align: center; }
 <th class="role-header" title="Number of BOM components this developer is involved with (hover for list)">Components</th>
 </tr>
 {%- for row in rows %}
-<tr>
+<tr data-dev="{{ row.dev_id }}">
 <td>{{ row.dev_link | safe }}</td>
-<td class="{{ 'nonzero' if row.reviewer_prs > 0 else 'zero' }}">{{ row.reviewer_prs }}</td>
-<td class="{{ 'nonzero' if row.support_issues > 0 else 'zero' }}">{{ row.support_issues }}</td>
-<td class="{{ 'nonzero' if row.debugger_bugs > 0 else 'zero' }}">{{ row.debugger_bugs }}</td>
-<td class="{{ 'nonzero' if row.developer_features > 0 else 'zero' }}">{{ row.developer_features }}</td>
-<td class="{{ 'nonzero' if row.maintainer_releases > 0 else 'zero' }}">{{ row.maintainer_releases }}</td>
+<td class="{{ 'nonzero has-popup' if row.reviewer_prs > 0 else 'zero' }}" data-col="reviewer_prs">{{ row.reviewer_prs }}</td>
+<td class="{{ 'nonzero has-popup' if row.support_issues > 0 else 'zero' }}" data-col="support_issues">{{ row.support_issues }}</td>
+<td class="{{ 'nonzero has-popup' if row.debugger_bugs > 0 else 'zero' }}" data-col="debugger_bugs">{{ row.debugger_bugs }}</td>
+<td class="{{ 'nonzero has-popup' if row.developer_features > 0 else 'zero' }}" data-col="developer_features">{{ row.developer_features }}</td>
+<td class="{{ 'nonzero has-popup' if row.maintainer_releases > 0 else 'zero' }}" data-col="maintainer_releases">{{ row.maintainer_releases }}</td>
 <td class="total-cell">{{ row.total }}</td>
 <td title="{{ row.components | join(', ') }}">{{ row.component_count }}</td>
 </tr>
@@ -48,6 +66,73 @@ th.role-header { text-align: center; }
   <b>Note:</b> Lead developers are counted in all role columns for each of their components.
   GitHub data excludes draft PRs and issues labeled &ldquo;question&rdquo;.
   Enhancement counts exclude issues with milestone &ldquo;unscheduled&rdquo;.
+  Click any nonzero cell to see the contributing items.
 </p>
+{%- if popup_data_json %}
+<div id="team-modal">
+  <div id="team-backdrop"></div>
+  <div id="team-box">
+    <div id="team-header">
+      <span id="team-title"></span>
+      <button id="team-close">&times;</button>
+    </div>
+    <ul id="team-list"></ul>
+  </div>
+</div>
+<script>
+(function(){
+  var modal = document.getElementById('team-modal');
+  var titleEl = document.getElementById('team-title');
+  var list = document.getElementById('team-list');
+  var DATA = {{ popup_data_json | safe }};
+
+  var COL_LABELS = {
+    reviewer_prs: 'PRs to review',
+    support_issues: 'Issues to answer',
+    debugger_bugs: 'Bugs to fix',
+    developer_features: 'Features requested',
+    maintainer_releases: 'Releases needed'
+  };
+
+  function show(devId, col, devName) {
+    var items = DATA[devId] && DATA[devId][col];
+    if (!items || !items.length) return;
+    titleEl.textContent = devName + ' — ' + COL_LABELS[col] + ' (' + items.length + ')';
+    list.innerHTML = '';
+    items.forEach(function(item) {
+      var li = document.createElement('li');
+      if (col === 'maintainer_releases') {
+        var repoLabel = item.url ? item.url.replace('https://github.com/', '') : item.ga;
+        li.innerHTML = item.url
+          ? '<a href="' + item.url + '/commits" target="_blank">' + item.ga + '</a>'
+          : item.ga;
+      } else {
+        li.innerHTML = '<a href="' + item.url + '" target="_blank">#' + item.number + ' – ' + escHtml(item.title) + '</a>'
+          + '<span class="popup-repo">' + escHtml(item.repo) + '</span>';
+      }
+      list.appendChild(li);
+    });
+    modal.classList.add('open');
+  }
+  function hide() { modal.classList.remove('open'); }
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.querySelectorAll('td.has-popup').forEach(function(td) {
+    td.addEventListener('click', function() {
+      var tr = td.closest('tr');
+      var devId = tr.dataset.dev;
+      var col = td.dataset.col;
+      var devName = tr.querySelector('td:first-child').textContent.trim();
+      show(devId, col, devName);
+    });
+  });
+  document.getElementById('team-close').addEventListener('click', hide);
+  document.getElementById('team-backdrop').addEventListener('click', hide);
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hide(); });
+})();
+</script>
+{%- endif %}
 </body>
 </html>

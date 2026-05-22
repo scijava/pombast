@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pombast.status._entry import StatusEntry
-    from pombast.team._github import RepoStats
+    from pombast.team._github import RepoItem, RepoStats
     from pombast.team._pom_devs import Developer
 
 # Roles that represent ongoing maintenance responsibility.
@@ -23,16 +23,61 @@ MAINTENANCE_ROLES = {
 
 
 @dataclass
+class ReleaseItem:
+    ga: str  # e.g. "net.imagej:imagej-common"
+    url: str  # project URL (GitHub repo page)
+
+
+@dataclass
 class DeveloperRow:
     developer: Developer
-    reviewer_prs: int = 0  # open PRs to review (reviewer or lead)
-    support_issues: int = 0  # open issues to answer (support or lead)
-    debugger_bugs: int = 0  # open bug reports (debugger or lead)
-    developer_features: int = 0  # open enhancement requests (developer or lead)
-    maintainer_releases: int = (
-        0  # components with unreleased changes (maintainer or lead)
-    )
+    # Dicts keyed by URL for deduplication across components sharing a repo.
+    _prs: dict[str, RepoItem] = field(default_factory=dict)
+    _issues: dict[str, RepoItem] = field(default_factory=dict)
+    _bugs: dict[str, RepoItem] = field(default_factory=dict)
+    _features: dict[str, RepoItem] = field(default_factory=dict)
+    _releases: dict[str, ReleaseItem] = field(default_factory=dict)  # ga → item
     components: list[str] = field(default_factory=list)
+
+    @property
+    def reviewer_prs(self) -> int:
+        return len(self._prs)
+
+    @property
+    def reviewer_pr_items(self) -> list[RepoItem]:
+        return list(self._prs.values())
+
+    @property
+    def support_issues(self) -> int:
+        return len(self._issues)
+
+    @property
+    def support_issue_items(self) -> list[RepoItem]:
+        return list(self._issues.values())
+
+    @property
+    def debugger_bugs(self) -> int:
+        return len(self._bugs)
+
+    @property
+    def debugger_bug_items(self) -> list[RepoItem]:
+        return list(self._bugs.values())
+
+    @property
+    def developer_features(self) -> int:
+        return len(self._features)
+
+    @property
+    def developer_feature_items(self) -> list[RepoItem]:
+        return list(self._features.values())
+
+    @property
+    def maintainer_releases(self) -> int:
+        return len(self._releases)
+
+    @property
+    def maintainer_release_items(self) -> list[ReleaseItem]:
+        return list(self._releases.values())
 
     @property
     def total(self) -> int:
@@ -85,15 +130,19 @@ def build_workloads(
 
             if stats:
                 if is_lead or "reviewer" in roles:
-                    row.reviewer_prs += stats.prs
+                    for item in stats.prs:
+                        row._prs.setdefault(item.url, item)
                 if is_lead or "support" in roles:
-                    row.support_issues += stats.issues
+                    for item in stats.issues:
+                        row._issues.setdefault(item.url, item)
                 if is_lead or "debugger" in roles:
-                    row.debugger_bugs += stats.bugs
+                    for item in stats.bugs:
+                        row._bugs.setdefault(item.url, item)
                 if is_lead or "developer" in roles:
-                    row.developer_features += stats.enhancements
+                    for item in stats.enhancements:
+                        row._features.setdefault(item.url, item)
 
             if needs_release and (is_lead or "maintainer" in roles):
-                row.maintainer_releases += 1
+                row._releases.setdefault(ga, ReleaseItem(ga=ga, url=url))
 
     return sorted(rows.values(), key=lambda r: r.total, reverse=True)
