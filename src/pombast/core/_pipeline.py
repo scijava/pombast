@@ -312,4 +312,3 @@ class Pipeline:
     def _build_repo_map(self) -> dict[str, str]:
         """Build the remote repository map from config and CLI args."""
         return {"central": "https://repo1.maven.org/maven2", **self.config.repositories}
-

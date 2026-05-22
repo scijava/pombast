@@ -186,7 +186,11 @@ def status_cmd(
     # Config repos come first, then CLI repos; load_bom appends central as last resort.
     repos = {
         **pombast_config.repositories,
-        **{k: v for i, spec in enumerate(repository) for k, v in [parse_repo_spec(spec, f"repo{i}")]},
+        **{
+            k: v
+            for i, spec in enumerate(repository)
+            for k, v in [parse_repo_spec(spec, f"repo{i}")]
+        },
     }
 
     bom_data = load_bom(bom, repositories=repos)
@@ -345,8 +349,10 @@ def _print_status_table(
     console.print(table)
 
     if smelt is not None and any(
-        smelt.get(f"{e.component.group}:{e.component.name}", {}).get("version") not in
-        (None, e.bom_version)
+        smelt.get(f"{e.component.group}:{e.component.name}", {}).get("version")
+        not in (None, e.bom_version)
         for e in entries
     ):
-        console.print("[dim][yellow]*[/yellow] smelt result is from a different version[/dim]")
+        console.print(
+            "[dim][yellow]*[/yellow] smelt result is from a different version[/dim]"
+        )

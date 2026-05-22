@@ -183,10 +183,12 @@ class TestValidate:
         pipeline = _make_pipeline(
             tmp_path,
             includes=["org.scijava:scijava-common"],
-            repositories=parse_repo_specs([
-                "https://repo1.maven.org/maven2",
-                "https://repo.jfrog.org/artifactory",
-            ]),
+            repositories=parse_repo_specs(
+                [
+                    "https://repo1.maven.org/maven2",
+                    "https://repo.jfrog.org/artifactory",
+                ]
+            ),
         )
         report = pipeline.run()
 
