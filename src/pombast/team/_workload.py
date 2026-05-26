@@ -72,7 +72,9 @@ class DeveloperRow:
 
     @property
     def component_url_items(self) -> list[tuple[str, str]]:
-        return [(ga, self._component_urls.get(ga, "")) for ga in sorted(self.components)]
+        return [
+            (ga, self._component_urls.get(ga, "")) for ga in sorted(self.components)
+        ]
 
     @property
     def total(self) -> int:
@@ -101,7 +103,12 @@ def _effective_role_mapping(
     for key in base:
         if key in ov:
             val = ov[key]
-            base[key] = {val} if isinstance(val, str) else set(str(v) for v in val)
+            if isinstance(val, str):
+                base[key] = {val}
+            elif isinstance(val, (list, tuple, set)):
+                base[key] = {str(v) for v in val}
+            else:
+                base[key] = {str(val)}
     return base
 
 
@@ -134,7 +141,9 @@ def build_workloads(
         pombast_config = PombastConfig.empty()
 
     team_cfg = pombast_config.team
-    team_filter = ComponentFilter(includes=team_cfg.includes, excludes=team_cfg.excludes)
+    team_filter = ComponentFilter(
+        includes=team_cfg.includes, excludes=team_cfg.excludes
+    )
 
     rows: dict[str, DeveloperRow] = {}
 
