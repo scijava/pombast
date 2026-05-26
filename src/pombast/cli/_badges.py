@@ -119,13 +119,16 @@ def badges_cmd(
         if not url or not url.startswith("https://github.com/"):
             continue
         slug = url[len("https://github.com/") :]
-        workflow: str | None = comp_ov.get(f"{g}:{a}", {}).get("ci-build")  # type: ignore[assignment]
+        ci_build = comp_ov.get(f"{g}:{a}", {}).get("ci-build")
+        if ci_build is False:
+            continue  # ci-build = false suppresses the badge
+        workflow: str | None = ci_build if isinstance(ci_build, str) else None
         repo_map[slug] = workflow
 
     total = len(repo_map)
     console.print(f"Fetching badges for [bold]{total}[/bold] repos…")
 
-    badges: dict[str, str] = {}
+    badges: dict[str, dict] = {}
     with Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -135,15 +138,16 @@ def badges_cmd(
     ) as progress:
         task = progress.add_task("Fetching…", total=total)
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures: dict[Future[str | None], str] = {
+            futures: dict[Future[tuple[str, str] | None], str] = {
                 pool.submit(fetch_badge_title, slug, workflow): slug
                 for slug, workflow in repo_map.items()
             }
             for future in as_completed(futures):
                 slug = futures[future]
-                title = future.result()
-                if title is not None:
-                    badges[slug] = title
+                result = future.result()
+                if result is not None:
+                    title, resolved_wf = result
+                    badges[slug] = {"title": title, "workflow": resolved_wf}
                 progress.update(task, advance=1, description=slug)
 
     write_badges_json(badges, output_path)

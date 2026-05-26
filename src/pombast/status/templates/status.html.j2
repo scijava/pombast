@@ -70,10 +70,17 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
   fetch('badges.json').then(function(r){return r.json();}).then(function(d){
     var repos=d.repos||{};
     document.querySelectorAll('td.ci[data-slug]').forEach(function(td){
-      var t=repos[td.dataset.slug];
-      if(!t)return;
+      var entry=repos[td.dataset.slug];
+      if(!entry)return;
+      var title=typeof entry==='string'?entry:entry.title;
+      var workflow=typeof entry==='string'?null:entry.workflow;
+      if(!title)return;
       td.setAttribute('sorttable_customkey',
-        t.indexOf('passing')>=0?'1':t.indexOf('failing')>=0?'2':'3');
+        title.indexOf('passing')>=0?'1':title.indexOf('failing')>=0?'2':'3');
+      if(workflow){
+        var img=td.querySelector('img');
+        if(img)img.src='https://github.com/'+td.dataset.slug+'/actions/workflows/'+workflow+'/badge.svg';
+      }
     });
   }).catch(function(){});
 })();

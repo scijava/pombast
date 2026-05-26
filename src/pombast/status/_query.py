@@ -84,14 +84,22 @@ def _infer_project_url(group_id: str, artifact_id: str) -> str:
     return ""
 
 
-def _make_ci_html(project_url: str, workflow: str | None) -> str:
+def _ensure_yaml_ext(name: str) -> str:
+    return name if (name.endswith(".yml") or name.endswith(".yaml")) else name + ".yml"
+
+
+def _make_ci_html(
+    project_url: str,
+    workflow: str | bool | None,
+    default_workflow: str = "build-main",
+) -> str:
     """Return the HTML table cell for a GitHub Actions CI badge."""
     if not project_url or not project_url.startswith("https://github.com/"):
         return ""
+    if workflow is False:
+        return ""
     slug = project_url[len("https://github.com/") :]
-    wf = workflow if workflow else "build-main"
-    if not wf.endswith(".yml"):
-        wf = wf + ".yml"
+    wf = _ensure_yaml_ext(workflow if isinstance(workflow, str) else default_workflow)
     return (
         f'<td class="ci" data-slug="{slug}">'
         f'<a href="https://github.com/{slug}/actions">'
@@ -131,6 +139,7 @@ def _fetch_one(
     comp_ov: dict[str, dict],
     vetting_ov: dict[str, datetime],
     max_age: int | None,
+    default_workflow: str,
 ) -> StatusEntry:
     g, a = comp.group, comp.name
     _log.info("Querying %s:%s", g, a)
@@ -148,8 +157,9 @@ def _fetch_one(
         last_updated = project.metadata.lastUpdated
 
     url = proj_ov.get(f"{g}:{a}") or _infer_project_url(g, a)
-    workflow: str | None = comp_ov.get(f"{g}:{a}", {}).get("ci-build")  # type: ignore[assignment]
-    ci = _make_ci_html(url, workflow)
+    ci_build = comp_ov.get(f"{g}:{a}", {}).get("ci-build")
+    workflow: str | bool | None = ci_build if isinstance(ci_build, (str, bool)) else None
+    ci = _make_ci_html(url, workflow, default_workflow)
     vetting = vetting_ov.get(f"{g}:{a}")
 
     return StatusEntry(
@@ -178,6 +188,7 @@ def query_status(
     fetch_timestamps: bool = True,
     workers: int = 8,
     max_age: int | None = DEFAULT_MAX_AGE,
+    default_workflow: str = "build-main",
 ) -> Iterator[StatusEntry]:
     """Yield a StatusEntry for each (filtered) component in the BOM.
 
@@ -197,7 +208,7 @@ def query_status(
 
     ctx = bom_data.ctx
 
-    args = (ctx, rules, fetch_timestamps, proj_ov, comp_ov, vetting_ov, max_age)
+    args = (ctx, rules, fetch_timestamps, proj_ov, comp_ov, vetting_ov, max_age, default_workflow)
 
     if workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:

@@ -232,6 +232,7 @@ def status_cmd(
             project_overrides=proj_ov,
             component_overrides=pombast_config.component_overrides,
             vetting_overrides=vetting_ov,
+            default_workflow=sc.default_ci_badge,
             includes=list(include),
             excludes=list(exclude),
             fetch_timestamps=not no_timestamps,

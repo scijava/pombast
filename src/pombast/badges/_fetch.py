@@ -16,6 +16,14 @@ _TITLE_RE = re.compile(r"<title>([^<]*)</title>")
 _DEFAULT_WORKFLOWS = ("build-main.yml", "build.yml")
 
 
+def _has_yaml_ext(name: str) -> bool:
+    return name.endswith(".yml") or name.endswith(".yaml")
+
+
+def _ensure_yaml_ext(name: str) -> str:
+    return name if _has_yaml_ext(name) else name + ".yml"
+
+
 def _fetch_svg_title(url: str) -> str | None:
     """Fetch a badge SVG URL and return its <title> text, or None on failure."""
     try:
@@ -28,56 +36,60 @@ def _fetch_svg_title(url: str) -> str | None:
         return None
 
 
-def fetch_badge_title(slug: str, workflow: str | None) -> str | None:
+def fetch_badge_title(slug: str, workflow: str | None) -> tuple[str, str] | None:
     """Fetch the badge title for a GitHub repo slug.
 
-    If *workflow* is given (with or without .yml suffix) that workflow is used.
+    If *workflow* is given (with or without extension) that workflow is used.
     Otherwise tries build-main.yml then build.yml, preferring whichever returns
     a status other than 'no status'.
+
+    Returns (title, resolved_workflow_filename) or None on failure.
     """
     if workflow:
-        wf = workflow if workflow.endswith(".yml") else workflow + ".yml"
-        return _fetch_svg_title(
+        wf = _ensure_yaml_ext(workflow)
+        title = _fetch_svg_title(
             f"https://github.com/{slug}/actions/workflows/{wf}/badge.svg"
         )
+        return (title, wf) if title is not None else None
 
-    titles: dict[str, str | None] = {}
+    last: tuple[str, str] | None = None
     for wf in _DEFAULT_WORKFLOWS:
         title = _fetch_svg_title(
             f"https://github.com/{slug}/actions/workflows/{wf}/badge.svg"
         )
-        titles[wf] = title
-        if title and "no status" not in title:
-            return title
-
-    return titles.get(_DEFAULT_WORKFLOWS[0])
+        if title is not None:
+            last = (title, wf)
+            if "no status" not in title:
+                return last
+    return last
 
 
 def fetch_badges(
     repos: dict[str, str | None],
     workers: int = 8,
-) -> dict[str, str]:
+) -> dict[str, dict]:
     """Fetch badge titles for all repos in parallel.
 
     *repos* maps slug → workflow override (or None for default discovery).
-    Returns slug → title string for repos that responded successfully.
+    Returns slug → {"title": ..., "workflow": ...} for repos that responded.
     """
-    results: dict[str, str] = {}
+    results: dict[str, dict] = {}
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures: list[tuple[str, Future[str | None]]] = [
+        futures: list[tuple[str, Future[tuple[str, str] | None]]] = [
             (slug, pool.submit(fetch_badge_title, slug, workflow))
             for slug, workflow in repos.items()
         ]
         for slug, future in futures:
-            title = future.result()
-            if title is not None:
-                results[slug] = title
+            result = future.result()
+            if result is not None:
+                title, resolved_wf = result
+                results[slug] = {"title": title, "workflow": resolved_wf}
 
     return results
 
 
-def write_badges_json(badges: dict[str, str], path: Path) -> None:
+def write_badges_json(badges: dict[str, dict], path: Path) -> None:
     """Write badges dict to a JSON file."""
     data = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
