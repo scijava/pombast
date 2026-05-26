@@ -84,17 +84,18 @@ def _infer_project_url(group_id: str, artifact_id: str) -> str:
     return ""
 
 
-def _make_badge_html(project_url: str, badge_overrides: dict[str, str]) -> str:
+def _make_ci_html(project_url: str, workflow: str | None) -> str:
     """Return the HTML table cell for a GitHub Actions CI badge."""
     if not project_url or not project_url.startswith("https://github.com/"):
         return ""
     slug = project_url[len("https://github.com/") :]
-    if slug in badge_overrides:
-        return badge_overrides[slug]
+    wf = workflow if workflow else "build-main"
+    if not wf.endswith(".yml"):
+        wf = wf + ".yml"
     return (
-        f'<td class="badge">'
+        f'<td class="ci" data-slug="{slug}">'
         f'<a href="https://github.com/{slug}/actions">'
-        f'<img data-src="https://github.com/{slug}/actions/workflows/build-main.yml/badge.svg">'
+        f'<img src="https://github.com/{slug}/actions/workflows/{wf}/badge.svg">'
         f"</a></td>"
     )
 
@@ -127,7 +128,7 @@ def _fetch_one(
     rules: RulesXML,
     fetch_timestamps: bool,
     proj_ov: dict[str, str],
-    badge_ov: dict[str, str],
+    comp_ov: dict[str, dict],
     vetting_ov: dict[str, datetime],
     max_age: int | None,
 ) -> StatusEntry:
@@ -147,7 +148,8 @@ def _fetch_one(
         last_updated = project.metadata.lastUpdated
 
     url = proj_ov.get(f"{g}:{a}") or _infer_project_url(g, a)
-    badge = _make_badge_html(url, badge_ov)
+    workflow: str | None = comp_ov.get(f"{g}:{a}", {}).get("ci-build")  # type: ignore[assignment]
+    ci = _make_ci_html(url, workflow)
     vetting = vetting_ov.get(f"{g}:{a}")
 
     return StatusEntry(
@@ -157,7 +159,7 @@ def _fetch_one(
         last_updated=last_updated,
         vetting_override=vetting,
         project_url=url,
-        badge_html=badge,
+        ci_html=ci,
     )
 
 
@@ -169,7 +171,7 @@ def query_status(
     *,
     rules: RulesXML,
     project_overrides: dict[str, str] | None = None,
-    badge_overrides: dict[str, str] | None = None,
+    component_overrides: dict[str, dict] | None = None,
     vetting_overrides: dict[str, datetime] | None = None,
     includes: list[str] | None = None,
     excludes: list[str] | None = None,
@@ -185,7 +187,7 @@ def query_status(
     once a version is released).
     """
     proj_ov = project_overrides or {}
-    badge_ov = badge_overrides or {}
+    comp_ov = component_overrides or {}
     vetting_ov = vetting_overrides or {}
 
     components = bom_data.components
@@ -195,7 +197,7 @@ def query_status(
 
     ctx = bom_data.ctx
 
-    args = (ctx, rules, fetch_timestamps, proj_ov, badge_ov, vetting_ov, max_age)
+    args = (ctx, rules, fetch_timestamps, proj_ov, comp_ov, vetting_ov, max_age)
 
     if workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:

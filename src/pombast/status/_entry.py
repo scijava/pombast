@@ -22,7 +22,7 @@ class StatusEntry:
     last_updated: datetime | None  # most recent deployment of any version
     vetting_override: datetime | None  # manual "last checked" from timestamps file
     project_url: str | None
-    badge_html: str | None
+    ci_html: str | None
 
     @property
     def bom_version(self) -> str:

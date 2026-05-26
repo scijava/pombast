@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from pombast.status._entry import StatusEntry
 
 
-_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build"]
+_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build", "Smelt"]
 
 _env = Environment(
     loader=PackageLoader("pombast.status", "templates"),
@@ -101,7 +101,7 @@ def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
         "drift": _drift_data(entry),
         "action": entry.action,
         "action_key": action_key,
-        "badge_html": entry.badge_html or "<td>-</td>",
+        "ci_html": entry.ci_html or "<td class='ci'></td>",
     }
 
 

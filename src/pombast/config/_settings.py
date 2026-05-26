@@ -71,7 +71,6 @@ class StatusConfig:
 
     rules: Path | None = None
     projects: Path | None = None
-    badges: Path | None = None
     timestamps: Path | None = None
     html: Path | None = None
     header: Path | None = None
@@ -139,7 +138,6 @@ class PombastConfig:
         status_config = StatusConfig(
             rules=resolve(status_data, "rules"),
             projects=resolve(status_data, "projects"),
-            badges=resolve(status_data, "badges"),
             timestamps=resolve(status_data, "timestamps"),
             html=resolve(status_data, "html"),
             header=resolve(status_data, "header"),

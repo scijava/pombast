@@ -99,7 +99,6 @@ class TestStatusConfig:
     def test_load_status_section(self, tmp_path):
         (tmp_path / "rules.xml").write_text("<rules/>")
         (tmp_path / "projects.txt").write_text("")
-        (tmp_path / "badges.txt").write_text("")
         (tmp_path / "timestamps.txt").write_text("")
         (tmp_path / "header.html").write_text("")
         (tmp_path / "footer.html").write_text("")
@@ -108,7 +107,6 @@ class TestStatusConfig:
 [status]
 rules = "rules.xml"
 projects = "projects.txt"
-badges = "badges.txt"
 timestamps = "timestamps.txt"
 html = "index.html"
 header = "header.html"
@@ -117,7 +115,6 @@ footer = "footer.html"
         config = PombastConfig.load(toml_path)
         assert config.status.rules == (tmp_path / "rules.xml").resolve()
         assert config.status.projects == (tmp_path / "projects.txt").resolve()
-        assert config.status.badges == (tmp_path / "badges.txt").resolve()
         assert config.status.timestamps == (tmp_path / "timestamps.txt").resolve()
         assert config.status.html == (tmp_path / "index.html").resolve()
         assert config.status.header == (tmp_path / "header.html").resolve()

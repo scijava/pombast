@@ -74,11 +74,6 @@ console = Console()
     help="Path to project URL overrides file (G:A <space> URL per line).",
 )
 @click.option(
-    "--badges",
-    default=None,
-    help="Path to CI badge HTML overrides file (slug <space> HTML per line).",
-)
-@click.option(
     "--timestamps",
     default=None,
     help="Path to vetting timestamps file (G:A <space> YYYYMMDDHHmmss per line).",
@@ -148,7 +143,6 @@ def status_cmd(
     config: Path | None,
     rules: str | None,
     projects: str | None,
-    badges: str | None,
     timestamps: str | None,
     smelt_path: Path | None,
     no_timestamps: bool,
@@ -174,7 +168,6 @@ def status_cmd(
     sc = pombast_config.status
     effective_rules = rules or (str(sc.rules) if sc.rules else None)
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
-    effective_badges = badges or (str(sc.badges) if sc.badges else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
     effective_html = html_path or sc.html
     effective_header = header or sc.header
@@ -209,7 +202,6 @@ def status_cmd(
         rules_xml = RulesXML.empty()
 
     proj_ov = load_kv_file(effective_projects) if effective_projects else {}
-    badge_ov = load_kv_file(effective_badges) if effective_badges else {}
     vetting_ov = (
         load_timestamps_file(effective_timestamps) if effective_timestamps else {}
     )
@@ -238,7 +230,7 @@ def status_cmd(
             bom_data,
             rules=rules_xml,
             project_overrides=proj_ov,
-            badge_overrides=badge_ov,
+            component_overrides=pombast_config.component_overrides,
             vetting_overrides=vetting_ov,
             includes=list(include),
             excludes=list(exclude),
