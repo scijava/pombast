@@ -6,20 +6,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from pombast.config._settings import PombastConfig
     from pombast.status._entry import StatusEntry
     from pombast.team._github import RepoItem, RepoStats
     from pombast.team._pom_devs import Developer
-
-# Roles that represent ongoing maintenance responsibility.
-# "founder" is excluded — it's historical credit, not active duty.
-MAINTENANCE_ROLES = {
-    "lead",
-    "developer",
-    "debugger",
-    "reviewer",
-    "support",
-    "maintainer",
-}
 
 
 @dataclass
@@ -38,6 +28,7 @@ class DeveloperRow:
     _features: dict[str, RepoItem] = field(default_factory=dict)
     _releases: dict[str, ReleaseItem] = field(default_factory=dict)  # ga → item
     components: list[str] = field(default_factory=list)
+    _component_urls: dict[str, str] = field(default_factory=dict)  # ga → project URL
 
     @property
     def reviewer_prs(self) -> int:
@@ -80,6 +71,10 @@ class DeveloperRow:
         return list(self._releases.values())
 
     @property
+    def component_url_items(self) -> list[tuple[str, str]]:
+        return [(ga, self._component_urls.get(ga, "")) for ga in sorted(self.components)]
+
+    @property
     def total(self) -> int:
         return (
             self.reviewer_prs
@@ -90,10 +85,39 @@ class DeveloperRow:
         )
 
 
+def _effective_role_mapping(
+    ga: str,
+    pombast_config: PombastConfig,
+) -> dict[str, set[str]]:
+    """Return {semantic_key: {pom_role_strings}} for this component.
+
+    Starts from global [team] role mappings and applies per-component overrides
+    from [components."g:a"] sections.
+    """
+    base: dict[str, set[str]] = {
+        key: set(vals) for key, vals in pombast_config.team.role_mapping().items()
+    }
+    ov = pombast_config.component_overrides.get(ga, {})
+    for key in base:
+        if key in ov:
+            val = ov[key]
+            base[key] = {val} if isinstance(val, str) else set(str(v) for v in val)
+    return base
+
+
+def _semantic_roles(
+    pom_roles: set[str],
+    mapping: dict[str, set[str]],
+) -> set[str]:
+    """Map POM role strings to semantic role keys using the given mapping."""
+    return {key for key, pom_names in mapping.items() if pom_roles & pom_names}
+
+
 def build_workloads(
     entries: list[StatusEntry],
     dev_roles: dict[str, list[tuple[Developer, set[str]]]],
     repo_stats: dict[str, RepoStats],
+    pombast_config: PombastConfig | None = None,
 ) -> list[DeveloperRow]:
     """Build per-developer workload rows sorted by total workload descending.
 
@@ -101,10 +125,23 @@ def build_workloads(
         entries: StatusEntry list from query_status (provides release status per component).
         dev_roles: G:A → [(Developer, roles)] from component POM <developers> sections.
         repo_stats: GitHub repo slug → RepoStats from the GitHub search API.
+        pombast_config: Full pombast config (for role mappings, team includes/excludes).
     """
+    from pombast.config._settings import PombastConfig
+    from pombast.core._filter import ComponentFilter
+
+    if pombast_config is None:
+        pombast_config = PombastConfig.empty()
+
+    team_cfg = pombast_config.team
+    team_filter = ComponentFilter(includes=team_cfg.includes, excludes=team_cfg.excludes)
+
     rows: dict[str, DeveloperRow] = {}
 
     for entry in entries:
+        if not team_filter.is_included(entry.component):
+            continue
+
         ga = entry.component.ga
         url = entry.project_url or ""
         slug = (
@@ -115,8 +152,11 @@ def build_workloads(
         stats = repo_stats.get(slug) if slug else None
         needs_release = entry.action == "Cut"
 
-        for dev, roles in dev_roles.get(ga, []):
-            if not (roles & MAINTENANCE_ROLES):
+        role_mapping = _effective_role_mapping(ga, pombast_config)
+
+        for dev, pom_roles in dev_roles.get(ga, []):
+            semantic = _semantic_roles(pom_roles, role_mapping)
+            if not semantic:
                 continue
 
             if dev.id not in rows:
@@ -125,24 +165,23 @@ def build_workloads(
 
             if ga not in row.components:
                 row.components.append(ga)
-
-            is_lead = "lead" in roles
+            row._component_urls.setdefault(ga, url)
 
             if stats:
-                if is_lead or "reviewer" in roles:
+                if "reviewer" in semantic:
                     for item in stats.prs:
                         row._prs.setdefault(item.url, item)
-                if is_lead or "support" in roles:
+                if "support" in semantic:
                     for item in stats.issues:
                         row._issues.setdefault(item.url, item)
-                if is_lead or "debugger" in roles:
+                if "debugger" in semantic:
                     for item in stats.bugs:
                         row._bugs.setdefault(item.url, item)
-                if is_lead or "developer" in roles:
+                if "developer" in semantic:
                     for item in stats.enhancements:
                         row._features.setdefault(item.url, item)
 
-            if needs_release and (is_lead or "maintainer" in roles):
+            if needs_release and "maintainer" in semantic:
                 row._releases.setdefault(ga, ReleaseItem(ga=ga, url=url))
 
     return sorted(rows.values(), key=lambda r: r.total, reverse=True)

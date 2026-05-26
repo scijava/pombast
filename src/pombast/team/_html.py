@@ -52,6 +52,9 @@ def generate_team_html(
             "maintainer_releases": [
                 {"ga": i.ga, "url": i.url} for i in r.maintainer_release_items
             ],
+            "components": [
+                {"ga": ga, "url": url} for ga, url in r.component_url_items
+            ],
         }
         return {
             "dev_link": _dev_link(r),
@@ -63,7 +66,6 @@ def generate_team_html(
             "maintainer_releases": r.maintainer_releases,
             "total": r.total,
             "component_count": len(r.components),
-            "components": sorted(r.components),
         }
 
     row_list = [_row_data(r) for r in rows]

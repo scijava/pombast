@@ -47,7 +47,7 @@ td.has-popup:hover { filter: brightness(1.3); }
 <th class="role-header" title="Open issues labeled &quot;enhancement&quot;, excluding unscheduled milestone (developer role)">Features&nbsp;requested</th>
 <th class="role-header" title="Components with unreleased commits (maintainer role)">Releases&nbsp;needed</th>
 <th class="role-header" title="Sum of all role columns">Total</th>
-<th class="role-header" title="Number of BOM components this developer is involved with (hover for list)">Components</th>
+<th class="role-header" title="Number of BOM components this developer is involved with (click for list)">Components</th>
 </tr>
 {%- for row in rows %}
 <tr data-dev="{{ row.dev_id }}">
@@ -58,15 +58,14 @@ td.has-popup:hover { filter: brightness(1.3); }
 <td class="{{ 'nonzero has-popup' if row.developer_features > 0 else 'zero' }}" data-col="developer_features">{{ row.developer_features }}</td>
 <td class="{{ 'nonzero has-popup' if row.maintainer_releases > 0 else 'zero' }}" data-col="maintainer_releases">{{ row.maintainer_releases }}</td>
 <td class="total-cell">{{ row.total }}</td>
-<td title="{{ row.components | join(', ') }}">{{ row.component_count }}</td>
+<td class="{{ 'has-popup' if row.component_count > 0 else '' }}" data-col="components">{{ row.component_count }}</td>
 </tr>
 {%- endfor %}
 </table>
 <p style="margin: 1em; font-size: 0.8em; color: #777;">
-  <b>Note:</b> Lead developers are counted in all role columns for each of their components.
-  GitHub data excludes draft PRs and issues labeled &ldquo;question&rdquo;.
+  <b>Note:</b> GitHub data excludes draft PRs and issues labeled &ldquo;question&rdquo;.
   Enhancement counts exclude issues with milestone &ldquo;unscheduled&rdquo;.
-  Click any nonzero cell to see the contributing items.
+  Click any nonzero cell to see the contributing items; click the Components count to see all associated components.
 </p>
 {%- if popup_data_json %}
 <div id="team-modal">
@@ -91,7 +90,8 @@ td.has-popup:hover { filter: brightness(1.3); }
     support_issues: 'Issues to answer',
     debugger_bugs: 'Bugs to fix',
     developer_features: 'Features requested',
-    maintainer_releases: 'Releases needed'
+    maintainer_releases: 'Releases needed',
+    components: 'Components'
   };
 
   function show(devId, col, devName) {
@@ -101,11 +101,10 @@ td.has-popup:hover { filter: brightness(1.3); }
     list.innerHTML = '';
     items.forEach(function(item) {
       var li = document.createElement('li');
-      if (col === 'maintainer_releases') {
-        var repoLabel = item.url ? item.url.replace('https://github.com/', '') : item.ga;
+      if (col === 'maintainer_releases' || col === 'components') {
         li.innerHTML = item.url
-          ? '<a href="' + item.url + '/commits" target="_blank">' + item.ga + '</a>'
-          : item.ga;
+          ? '<a href="' + (col === 'maintainer_releases' ? item.url + '/commits' : item.url) + '" target="_blank">' + escHtml(item.ga) + '</a>'
+          : escHtml(item.ga);
       } else {
         li.innerHTML = '<a href="' + item.url + '" target="_blank">#' + item.number + ' – ' + escHtml(item.title) + '</a>'
           + '<span class="popup-repo">' + escHtml(item.repo) + '</span>';

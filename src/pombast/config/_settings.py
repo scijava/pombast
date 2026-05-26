@@ -12,6 +12,15 @@ else:
     import tomli as tomllib
 
 
+def _parse_role_value(value: object, default: str) -> list[str]:
+    """Coerce a TOML role value (str or list[str]) to list[str]."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    return [default]
+
+
 def parse_repo_spec(spec: str, fallback_id: str) -> tuple[str, str]:
     """Parse 'id=url' or bare 'url'; return (repo_id, url)."""
     name, sep, url = spec.partition("=")
@@ -33,6 +42,27 @@ class FilterConfig:
 
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
+
+
+_TEAM_ROLE_KEYS = ("lead", "developer", "debugger", "reviewer", "support", "maintainer")
+
+
+@dataclass
+class TeamConfig:
+    """Configuration for the team command, including role mappings."""
+
+    includes: list[str] = field(default_factory=list)
+    excludes: list[str] = field(default_factory=list)
+    lead: list[str] = field(default_factory=lambda: ["lead"])
+    developer: list[str] = field(default_factory=lambda: ["developer"])
+    debugger: list[str] = field(default_factory=lambda: ["debugger"])
+    reviewer: list[str] = field(default_factory=lambda: ["reviewer"])
+    support: list[str] = field(default_factory=lambda: ["support"])
+    maintainer: list[str] = field(default_factory=lambda: ["maintainer"])
+
+    def role_mapping(self) -> dict[str, list[str]]:
+        """Return {semantic_key: [pom_role_strings]} for all role keys."""
+        return {key: getattr(self, key) for key in _TEAM_ROLE_KEYS}
 
 
 @dataclass
@@ -71,6 +101,7 @@ class PombastConfig:
     component_overrides: dict[str, dict[str, object]] = field(default_factory=dict)
     mega_melt: MegaMeltConfig = field(default_factory=MegaMeltConfig)
     status: StatusConfig = field(default_factory=StatusConfig)
+    team: TeamConfig = field(default_factory=TeamConfig)
 
     @classmethod
     def load(cls, path: Path) -> PombastConfig:
@@ -116,6 +147,17 @@ class PombastConfig:
             nexus_base=status_data.get("nexus-base", ""),
         )
 
+        team_data = data.get("team", {})
+        team_config = TeamConfig(
+            includes=team_data.get("includes", []),
+            excludes=team_data.get("excludes", []),
+            **{
+                key: _parse_role_value(team_data[key], key)
+                for key in _TEAM_ROLE_KEYS
+                if key in team_data
+            },
+        )
+
         return cls(
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
@@ -126,6 +168,7 @@ class PombastConfig:
             component_overrides={k: v for k, v in data.get("components", {}).items()},
             mega_melt=mega_melt_config,
             status=status_config,
+            team=team_config,
         )
 
     @classmethod

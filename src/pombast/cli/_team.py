@@ -247,7 +247,7 @@ def team_cmd(
         console.print(f"  Got stats for {len(repo_stats)} repos.")
 
     # Phase 4: aggregate and display
-    workload_rows = build_workloads(entries, dev_roles, repo_stats)
+    workload_rows = build_workloads(entries, dev_roles, repo_stats, pombast_config)
 
     table = Table(title="Team Workload", show_lines=False)
     table.add_column("Developer", style="cyan", no_wrap=True)
