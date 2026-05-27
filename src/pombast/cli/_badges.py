@@ -109,7 +109,11 @@ def badges_cmd(
     proj_ov = load_kv_file(effective_projects) if effective_projects else {}
     comp_ov = pombast_config.component_overrides
 
-    cf = ComponentFilter(includes=list(include), excludes=list(exclude))
+    bc = pombast_config.badges
+    cf = ComponentFilter(
+        includes=list(include) or bc.includes,
+        excludes=list(exclude) or bc.excludes,
+    )
     components = cf.filter(bom_data.components)
 
     ctx = bom_data.ctx
