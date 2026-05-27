@@ -6,6 +6,7 @@
 <link type="text/css" rel="stylesheet" href="status.css">
 <link rel="icon" type="image/png" href="favicon.png">
 <script type="text/javascript" src="sorttable.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ansi_up@5/ansi_up.js"></script>
 <style>
 td.smelt { text-align: center; min-width: 3em; }
 td.smelt.has-log { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
@@ -13,12 +14,12 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 #smelt-modal { display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; }
 #smelt-modal.open { display: flex; }
 #smelt-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); }
-#smelt-box { position: relative; z-index: 1; background: #fff; border-radius: 6px; max-width: 900px; width: 95vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.3); overflow: hidden; }
-#smelt-header { display: flex; align-items: center; gap: .5em; padding: .6em 1em; background: #f5f5f5; border-bottom: 1px solid #ddd; }
-#smelt-title { flex: 1; font-weight: bold; font-size: .95em; }
+#smelt-box { position: relative; z-index: 1; background: #1a1a1a; border-radius: 6px; max-width: 900px; width: 95vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.6); overflow: hidden; }
+#smelt-header { display: flex; align-items: center; gap: .5em; padding: .6em 1em; background: #2a2a2a; border-bottom: 1px solid #444; }
+#smelt-title { flex: 1; font-weight: bold; font-size: .95em; color: #e0e0e0; }
 #smelt-close { background: none; border: none; color: #888; font-size: 1.4em; line-height: 1; cursor: pointer; padding: 0 .15em; flex-shrink: 0; }
-#smelt-close:hover { color: #333; }
-#smelt-log { margin: 0; padding: .75em 1em; overflow: auto; flex: 1; font-size: .8em; white-space: pre; }
+#smelt-close:hover { color: #fff; }
+#smelt-log { margin: 0; padding: .75em 1em; overflow: auto; flex: 1; font-size: .8em; white-space: pre; line-height: 1.4; color: #ccc; }
 </style>
 </head>
 <body>
@@ -91,21 +92,21 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 })();
 (function(){
   var PASS={pass:1,prior:1,skip:1,skipped:1},FAIL={fail:1,error:1};
+  var au=new AnsiUp();
   function isPass(s){return !!(s&&PASS[s]);}
   function isFail(s){return !!(s&&FAIL[s]);}
-  function stripAnsi(s){return s?s.replace(/\x1b\[[0-9;]*[A-Za-z]/g,''):''}
   function buildLog(c){
     var p=[];
-    if(isFail(c.binary_test)&&c.binary_log)p.push('=== Binary ===\n'+stripAnsi(c.binary_log));
+    if(isFail(c.binary_test)&&c.binary_log)p.push('=== Binary ===\n'+c.binary_log);
     if(isFail(c.source_build)&&c.source_log){
-      if(p.length)p.push('\n=== Source ===\n'+stripAnsi(c.source_log));
-      else p.push('=== Source ===\n'+stripAnsi(c.source_log));
+      if(p.length)p.push('\n=== Source ===\n'+c.source_log);
+      else p.push('=== Source ===\n'+c.source_log);
     }
     return p.join('');
   }
   function showSmelt(){
     document.getElementById('smelt-title').textContent=this.dataset.ga;
-    document.getElementById('smelt-log').textContent=this.dataset.log;
+    document.getElementById('smelt-log').innerHTML=au.ansi_to_html(this.dataset.log);
     document.getElementById('smelt-modal').classList.add('open');
   }
   fetch('smelt.json').then(function(r){return r.json();}).then(function(d){
