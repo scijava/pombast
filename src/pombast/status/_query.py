@@ -108,6 +108,18 @@ def _make_ci_html(
     )
 
 
+def _scm_project_url(ctx, group_id: str, artifact_id: str, version: str) -> str:
+    """Extract a GitHub project URL from a release POM's scm/url field."""
+    try:
+        pom = ctx.project(group_id, artifact_id).at_version(version).pom()
+        url = pom.value("scm/url")
+        if url and url.startswith("https://github.com/"):
+            return url.removesuffix(".git")
+    except Exception:
+        pass
+    return ""
+
+
 def _pom_last_modified(
     ctx,
     group_id: str,
@@ -156,11 +168,24 @@ def _fetch_one(
         release_ts = _pom_last_modified(ctx, g, a, latest)
         last_updated = project.metadata.lastUpdated
 
-    url = proj_ov.get(f"{g}:{a}") or _infer_project_url(g, a)
-    ci_build = comp_ov.get(f"{g}:{a}", {}).get("ci-build")
-    workflow: str | bool | None = ci_build if isinstance(ci_build, (str, bool)) else None
+    comp_data = comp_ov.get(f"{g}:{a}", {})
+    url = (
+        comp_data.get("project-url")
+        or proj_ov.get(f"{g}:{a}")
+        or _scm_project_url(ctx, g, a, comp.version)
+        or _infer_project_url(g, a)
+    )
+    ci_build = comp_data.get("ci-build")
+    workflow: str | bool | None = (
+        ci_build if isinstance(ci_build, (str, bool)) else None
+    )
     ci = _make_ci_html(url, workflow, default_workflow)
-    vetting = vetting_ov.get(f"{g}:{a}")
+    raw_vetted = comp_data.get("last-vetted")
+    vetting = (
+        _parse_ts(str(raw_vetted))
+        if raw_vetted is not None
+        else vetting_ov.get(f"{g}:{a}")
+    )
 
     return StatusEntry(
         component=comp,
@@ -208,7 +233,16 @@ def query_status(
 
     ctx = bom_data.ctx
 
-    args = (ctx, rules, fetch_timestamps, proj_ov, comp_ov, vetting_ov, max_age, default_workflow)
+    args = (
+        ctx,
+        rules,
+        fetch_timestamps,
+        proj_ov,
+        comp_ov,
+        vetting_ov,
+        max_age,
+        default_workflow,
+    )
 
     if workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:

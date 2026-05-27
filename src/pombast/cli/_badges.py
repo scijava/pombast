@@ -19,7 +19,7 @@ from pombast.badges._fetch import fetch_badge_title, write_badges_json
 from pombast.config._settings import PombastConfig, parse_repo_spec
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
-from pombast.status._query import _infer_project_url, load_kv_file
+from pombast.status._query import _infer_project_url, _scm_project_url, load_kv_file
 
 console = Console()
 
@@ -112,14 +112,22 @@ def badges_cmd(
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))
     components = cf.filter(bom_data.components)
 
+    ctx = bom_data.ctx
     repo_map: dict[str, str | None] = {}
     for comp in components:
         g, a = comp.group, comp.name
-        url = proj_ov.get(f"{g}:{a}") or _infer_project_url(g, a)
+        comp_data = comp_ov.get(f"{g}:{a}", {})
+        _pu = comp_data.get("project-url")
+        url = (
+            (str(_pu) if isinstance(_pu, str) else "")
+            or proj_ov.get(f"{g}:{a}")
+            or _scm_project_url(ctx, g, a, comp.version)
+            or _infer_project_url(g, a)
+        )
         if not url or not url.startswith("https://github.com/"):
             continue
         slug = url[len("https://github.com/") :]
-        ci_build = comp_ov.get(f"{g}:{a}", {}).get("ci-build")
+        ci_build = comp_data.get("ci-build")
         if ci_build is False:
             continue  # ci-build = false suppresses the badge
         workflow: str | None = ci_build if isinstance(ci_build, str) else None
