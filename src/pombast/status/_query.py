@@ -100,12 +100,7 @@ def _make_ci_html(
         return ""
     slug = project_url[len("https://github.com/") :]
     wf = _ensure_yaml_ext(workflow if isinstance(workflow, str) else default_workflow)
-    return (
-        f'<td class="ci" data-slug="{slug}">'
-        f'<a href="https://github.com/{slug}/actions">'
-        f'<img src="https://github.com/{slug}/actions/workflows/{wf}/badge.svg">'
-        f"</a></td>"
-    )
+    return f'<td class="ci" data-slug="{slug}" data-wf="{wf}"></td>'
 
 
 def _scm_project_url(ctx, group_id: str, artifact_id: str, version: str) -> str:

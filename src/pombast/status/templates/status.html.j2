@@ -69,18 +69,23 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 (function(){
   fetch('badges.json').then(function(r){return r.json();}).then(function(d){
     var repos=d.repos||{};
-    document.querySelectorAll('td.ci[data-slug]').forEach(function(td){
-      var entry=repos[td.dataset.slug];
-      if(!entry)return;
-      var title=typeof entry==='string'?entry:entry.title;
-      var workflow=typeof entry==='string'?null:entry.workflow;
-      if(!title)return;
-      td.setAttribute('sorttable_customkey',
+    var tds=Array.from(document.querySelectorAll('td.ci[data-slug]'));
+    tds.forEach(function(td,i){
+      var slug=td.dataset.slug;
+      var entry=repos[slug];
+      var title=entry?(typeof entry==='string'?entry:entry.title):null;
+      var wf=entry?(typeof entry==='string'?null:entry.workflow):null;
+      if(!wf)wf=td.dataset.wf;
+      if(title)td.setAttribute('sorttable_customkey',
         title.indexOf('passing')>=0?'1':title.indexOf('failing')>=0?'2':'3');
-      if(workflow){
-        var img=td.querySelector('img');
-        if(img)img.src='https://github.com/'+td.dataset.slug+'/actions/workflows/'+workflow+'/badge.svg';
-      }
+      setTimeout(function(){
+        var a=document.createElement('a');
+        a.href='https://github.com/'+slug+'/actions';
+        var img=document.createElement('img');
+        img.src='https://github.com/'+slug+'/actions/workflows/'+wf+'/badge.svg';
+        a.appendChild(img);
+        td.appendChild(a);
+      },i*40);
     });
   }).catch(function(){});
 })();
