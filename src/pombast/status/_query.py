@@ -147,6 +147,7 @@ def _fetch_one(
     vetting_ov: dict[str, datetime],
     max_age: int | None,
     default_workflow: str,
+    badges_filter: ComponentFilter | None,
 ) -> StatusEntry:
     g, a = comp.group, comp.name
     _log.info("Querying %s:%s", g, a)
@@ -174,7 +175,8 @@ def _fetch_one(
     workflow: str | bool | None = (
         ci_build if isinstance(ci_build, (str, bool)) else None
     )
-    ci = _make_ci_html(url, workflow, default_workflow)
+    badges_ok = badges_filter is None or badges_filter.is_included(comp)
+    ci = _make_ci_html(url, workflow, default_workflow) if badges_ok else ""
     raw_vetted = comp_data.get("last-vetted")
     vetting = (
         _parse_ts(str(raw_vetted))
@@ -205,6 +207,8 @@ def query_status(
     vetting_overrides: dict[str, datetime] | None = None,
     includes: list[str] | None = None,
     excludes: list[str] | None = None,
+    badges_includes: list[str] | None = None,
+    badges_excludes: list[str] | None = None,
     fetch_timestamps: bool = True,
     workers: int = 8,
     max_age: int | None = DEFAULT_MAX_AGE,
@@ -226,6 +230,12 @@ def query_status(
         cf = ComponentFilter(includes=includes or [], excludes=excludes or [])
         components = cf.filter(components)
 
+    badges_filter: ComponentFilter | None = None
+    if badges_includes or badges_excludes:
+        badges_filter = ComponentFilter(
+            includes=badges_includes or [], excludes=badges_excludes or []
+        )
+
     ctx = bom_data.ctx
 
     args = (
@@ -237,6 +247,7 @@ def query_status(
         vetting_ov,
         max_age,
         default_workflow,
+        badges_filter,
     )
 
     if workers > 1:

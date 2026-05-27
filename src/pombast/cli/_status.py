@@ -216,6 +216,7 @@ def status_cmd(
 
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))
     total = len(cf.filter(bom_data.components))
+    bc = pombast_config.badges
 
     entries: list[StatusEntry] = []
     with Progress(
@@ -235,6 +236,8 @@ def status_cmd(
             default_workflow=sc.default_ci_badge,
             includes=list(include),
             excludes=list(exclude),
+            badges_includes=bc.includes or None,
+            badges_excludes=bc.excludes or None,
             fetch_timestamps=not no_timestamps,
             workers=workers,
             max_age=effective_max_age or None,
