@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _TITLE_RE = re.compile(r"<title>([^<]*)</title>")
-_DEFAULT_WORKFLOWS = ("build-main.yml", "build.yml")
+_DEFAULT_WORKFLOWS = ("build.yml",)
 
 
 def _has_yaml_ext(name: str) -> bool:
@@ -40,8 +40,7 @@ def fetch_badge_title(slug: str, workflow: str | None) -> tuple[str, str] | None
     """Fetch the badge title for a GitHub repo slug.
 
     If *workflow* is given (with or without extension) that workflow is used.
-    Otherwise tries build-main.yml then build.yml, preferring whichever returns
-    a status other than 'no status'.
+    Otherwise tries build.yml.
 
     Returns (title, resolved_workflow_filename) or None on failure.
     """
@@ -58,9 +57,7 @@ def fetch_badge_title(slug: str, workflow: str | None) -> tuple[str, str] | None
             f"https://github.com/{slug}/actions/workflows/{wf}/badge.svg"
         )
         if title is not None:
-            last = (title, wf)
-            if "no status" not in title:
-                return last
+            return (title, wf)
     return last
 
 

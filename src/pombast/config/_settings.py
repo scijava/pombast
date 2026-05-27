@@ -76,7 +76,7 @@ class StatusConfig:
     header: Path | None = None
     footer: Path | None = None
     nexus_base: str = ""
-    default_ci_badge: str = "build-main"
+    default_ci_badge: str = "build"
 
 
 @dataclass
@@ -140,7 +140,7 @@ class PombastConfig:
             rules=resolve(status_data, "rules"),
             projects=resolve(status_data, "projects"),
             timestamps=resolve(status_data, "timestamps"),
-            default_ci_badge=status_data.get("default-ci-badge", "build-main"),
+            default_ci_badge=status_data.get("default-ci-badge", "build"),
             html=resolve(status_data, "html"),
             header=resolve(status_data, "header"),
             footer=resolve(status_data, "footer"),

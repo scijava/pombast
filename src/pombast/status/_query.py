@@ -91,7 +91,7 @@ def _ensure_yaml_ext(name: str) -> str:
 def _make_ci_html(
     project_url: str,
     workflow: str | bool | None,
-    default_workflow: str = "build-main",
+    default_workflow: str = "build",
 ) -> str:
     """Return the HTML table cell for a GitHub Actions CI badge."""
     if not project_url or not project_url.startswith("https://github.com/"):
@@ -213,7 +213,7 @@ def query_status(
     fetch_timestamps: bool = True,
     workers: int = 8,
     max_age: int | None = DEFAULT_MAX_AGE,
-    default_workflow: str = "build-main",
+    default_workflow: str = "build",
 ) -> Iterator[StatusEntry]:
     """Yield a StatusEntry for each (filtered) component in the BOM.
 
