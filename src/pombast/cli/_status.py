@@ -238,6 +238,7 @@ def status_cmd(
             excludes=list(exclude),
             badges_includes=bc.includes or None,
             badges_excludes=bc.excludes or None,
+            cuttable=sc.cuttable or None,
             fetch_timestamps=not no_timestamps,
             workers=workers,
             max_age=effective_max_age or None,

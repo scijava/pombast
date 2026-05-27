@@ -77,6 +77,7 @@ class StatusConfig:
     footer: Path | None = None
     nexus_base: str = ""
     default_ci_badge: str = "build"
+    cuttable: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -154,6 +155,7 @@ class PombastConfig:
             header=resolve(status_data, "header"),
             footer=resolve(status_data, "footer"),
             nexus_base=status_data.get("nexus-base", ""),
+            cuttable=status_data.get("cuttable", []),
         )
 
         badges_data = data.get("badges", {})

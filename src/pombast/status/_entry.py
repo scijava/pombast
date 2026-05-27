@@ -23,6 +23,7 @@ class StatusEntry:
     vetting_override: datetime | None  # manual "last checked" from timestamps file
     project_url: str | None
     ci_html: str | None
+    cuttable: bool = True
 
     @property
     def bom_version(self) -> str:
@@ -60,7 +61,7 @@ class StatusEntry:
     @property
     def action(self) -> str:
         """Recommended maintenance action: 'Cut', 'Bump', or 'None'."""
-        if self.project_url and not self.release_ok:
+        if self.cuttable and self.project_url and not self.release_ok:
             return "Cut"
         if not self.bom_ok:
             return "Bump"

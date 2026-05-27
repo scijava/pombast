@@ -148,6 +148,7 @@ def _fetch_one(
     max_age: int | None,
     default_workflow: str,
     badges_filter: ComponentFilter | None,
+    cuttable_filter: ComponentFilter | None,
 ) -> StatusEntry:
     g, a = comp.group, comp.name
     _log.info("Querying %s:%s", g, a)
@@ -183,6 +184,7 @@ def _fetch_one(
         if raw_vetted is not None
         else vetting_ov.get(f"{g}:{a}")
     )
+    cuttable = cuttable_filter is None or cuttable_filter.is_included(comp)
 
     return StatusEntry(
         component=comp,
@@ -192,6 +194,7 @@ def _fetch_one(
         vetting_override=vetting,
         project_url=url,
         ci_html=ci,
+        cuttable=cuttable,
     )
 
 
@@ -209,6 +212,7 @@ def query_status(
     excludes: list[str] | None = None,
     badges_includes: list[str] | None = None,
     badges_excludes: list[str] | None = None,
+    cuttable: list[str] | None = None,
     fetch_timestamps: bool = True,
     workers: int = 8,
     max_age: int | None = DEFAULT_MAX_AGE,
@@ -236,6 +240,10 @@ def query_status(
             includes=badges_includes or [], excludes=badges_excludes or []
         )
 
+    cuttable_filter: ComponentFilter | None = None
+    if cuttable:
+        cuttable_filter = ComponentFilter(includes=cuttable)
+
     ctx = bom_data.ctx
 
     args = (
@@ -248,6 +256,7 @@ def query_status(
         max_age,
         default_workflow,
         badges_filter,
+        cuttable_filter,
     )
 
     if workers > 1:
