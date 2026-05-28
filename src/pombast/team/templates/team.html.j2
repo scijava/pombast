@@ -39,7 +39,7 @@ td.has-popup:hover { filter: brightness(1.3); }
 {%- endif %}
 <table class="sortable">
 <tr>
-<th>Developer</th>
+<th>Team Member</th>
 <th class="role-header" title="Open PRs awaiting review (reviewer role)">PRs&nbsp;to&nbsp;review</th>
 <th class="role-header" title="Open issues needing response, excluding &quot;question&quot; label (support role)">Issues&nbsp;to&nbsp;answer</th>
 <th class="role-header" title="Open issues labeled &quot;bug&quot; (debugger role)">Bugs&nbsp;to&nbsp;fix</th>
@@ -85,11 +85,11 @@ td.has-popup:hover { filter: brightness(1.3); }
   var DATA = {{ popup_data_json | safe }};
 
   var COL_LABELS = {
-    reviewer_prs: 'PRs to review',
-    support_issues: 'Issues to answer',
-    debugger_bugs: 'Bugs to fix',
-    developer_features: 'Features requested',
-    maintainer_releases: 'Releases needed',
+    reviewer_prs: 'PRs',
+    support_issues: 'Issues',
+    debugger_bugs: 'Bugs',
+    developer_features: 'Features',
+    maintainer_releases: 'Releases',
     components: 'Components'
   };
 
