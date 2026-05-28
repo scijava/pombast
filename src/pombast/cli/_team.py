@@ -18,6 +18,7 @@ from rich.progress import (
 from rich.table import Table
 
 from pombast.config._settings import PombastConfig, parse_repo_spec
+from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._rules import RulesXML
 from pombast.status._query import (
@@ -215,8 +216,14 @@ def team_cmd(
         )
         repo_stats: dict = {}
     else:
+        team_cfg = pombast_config.team
+        team_filter = ComponentFilter(
+            includes=team_cfg.includes, excludes=team_cfg.excludes
+        )
         orgs: set[str] = set()
         for e in entries:
+            if not team_filter.is_included(e.component):
+                continue
             url = e.project_url or ""
             parts = url.split("/")
             if "github.com" in url and len(parts) >= 5:
