@@ -53,6 +53,9 @@ class TeamConfig:
 
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
+    html: Path | None = None
+    header: Path | None = None
+    footer: Path | None = None
     lead: list[str] = field(default_factory=lambda: ["lead"])
     developer: list[str] = field(default_factory=lambda: ["developer"])
     debugger: list[str] = field(default_factory=lambda: ["debugger"])
@@ -168,6 +171,9 @@ class PombastConfig:
         team_config = TeamConfig(
             includes=team_data.get("includes", []),
             excludes=team_data.get("excludes", []),
+            html=resolve(team_data, "html"),
+            header=resolve(team_data, "header"),
+            footer=resolve(team_data, "footer"),
             **{
                 key: _parse_role_value(team_data[key], key)
                 for key in _TEAM_ROLE_KEYS

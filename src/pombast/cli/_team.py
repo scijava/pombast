@@ -96,6 +96,18 @@ console = Console()
     default=None,
     help="Write HTML team report to this file.",
 )
+@click.option(
+    "--header",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="HTML fragment to inject inside <body> before the main table.",
+)
+@click.option(
+    "--footer",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="HTML fragment to append inside <body> after the main table.",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def team_cmd(
     bom: str,
@@ -109,6 +121,8 @@ def team_cmd(
     refresh: bool,
     workers: int,
     html_path: Path | None,
+    header: Path | None,
+    footer: Path | None,
     verbose: bool,
 ) -> None:
     """Show team accountability status for all BOM component developers.
@@ -129,9 +143,13 @@ def team_cmd(
 
     pombast_config = PombastConfig.load_default(config)
     sc = pombast_config.status
+    tc = pombast_config.team
     effective_rules = rules or (str(sc.rules) if sc.rules else None)
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
+    effective_html = html_path or tc.html
+    effective_header = header or tc.header
+    effective_footer = footer or tc.footer
     effective_max_age = 0 if refresh else max_age
 
     repos = {
@@ -285,7 +303,16 @@ def team_cmd(
     console.print()
     console.print(table)
 
-    if html_path:
+    if effective_html:
         generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        html_path.write_text(generate_team_html(workload_rows, generated=generated))
-        console.print(f"\nHTML team report written to: [cyan]{html_path}[/cyan]")
+        header_html = effective_header.read_text() if effective_header else ""
+        footer_html = effective_footer.read_text() if effective_footer else ""
+        effective_html.write_text(
+            generate_team_html(
+                workload_rows,
+                header_html=header_html,
+                footer_html=footer_html,
+                generated=generated,
+            )
+        )
+        console.print(f"\nHTML team report written to: [cyan]{effective_html}[/cyan]")

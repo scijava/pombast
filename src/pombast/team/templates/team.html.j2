@@ -34,17 +34,18 @@ td.has-popup:hover { filter: brightness(1.3); }
 <body>
 <!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
 <span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
+{{ header_html | safe }}
 {%- if generated %}
 <p style="margin: 0.5em 1em; font-size: 0.85em; color: #555;">Generated: {{ generated }}</p>
 {%- endif %}
 <table class="sortable">
 <tr>
 <th>Team Member</th>
-<th class="role-header" title="Open PRs awaiting review (reviewer role)">PRs&nbsp;to&nbsp;review</th>
-<th class="role-header" title="Open issues needing response, excluding &quot;question&quot; label (support role)">Issues&nbsp;to&nbsp;answer</th>
-<th class="role-header" title="Open issues labeled &quot;bug&quot; (debugger role)">Bugs&nbsp;to&nbsp;fix</th>
-<th class="role-header" title="Open issues labeled &quot;enhancement&quot;, excluding unscheduled milestone (developer role)">Features&nbsp;requested</th>
-<th class="role-header" title="Components with unreleased commits (maintainer role)">Releases&nbsp;needed</th>
+<th class="role-header" title="Open PRs awaiting review (reviewer role)">PRs</th>
+<th class="role-header" title="Open issues needing response, excluding &quot;question&quot; label (support role)">Issues</th>
+<th class="role-header" title="Open issues labeled &quot;bug&quot; (debugger role)">Bugs</th>
+<th class="role-header" title="Open issues labeled &quot;enhancement&quot;, excluding unscheduled milestone (developer role)">Features</th>
+<th class="role-header" title="Components with unreleased commits (maintainer role)">Releases</th>
 <th class="role-header" title="Sum of all role columns">Total</th>
 <th class="role-header" title="Number of BOM components this developer is involved with (click for list)">Components</th>
 </tr>
@@ -66,6 +67,7 @@ td.has-popup:hover { filter: brightness(1.3); }
   Enhancement counts exclude issues with milestone &ldquo;unscheduled&rdquo;.
   Click any nonzero cell to see the contributing items; click the Components count to see all associated components.
 </p>
+{{ footer_html | safe }}
 {%- if popup_data_json %}
 <div id="team-modal">
   <div id="team-backdrop"></div>

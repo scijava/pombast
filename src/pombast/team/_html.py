@@ -36,6 +36,8 @@ def generate_team_html(
     rows: Iterable[DeveloperRow],
     *,
     title: str = "SciJava team status",
+    header_html: str = "",
+    footer_html: str = "",
     generated: str = "",
 ) -> str:
     """Return a complete HTML page with the team accountability table."""
@@ -70,6 +72,8 @@ def generate_team_html(
     template = _env.get_template("team.html.j2")
     return template.render(
         title=title,
+        header_html=header_html,
+        footer_html=footer_html,
         generated=generated,
         rows=row_list,
         popup_data_json=json.dumps(popup_data) if popup_data else None,
