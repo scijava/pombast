@@ -251,6 +251,16 @@ class Pipeline:
                     )
                     shutil.rmtree(source_dir)
                 try:
+                    if component.scm_url is None:
+                        _log.error("%s: no scm url — %s", component.coordinate)
+                        report.results.append(
+                            BuildResult(
+                                component=component,
+                                status=BuildStatus.ERROR,
+                                skipped_reason="no scm url",
+                            )
+                        )
+                        continue
                     bare_repo = repo_cache.ensure_ref(component, component.scm_url, tag)
                     shallow_clone(bare_repo, tag, source_dir)
                 except Exception as e:

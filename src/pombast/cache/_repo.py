@@ -6,7 +6,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pombast.util._git import bare_clone, default_branch, fetch_tags, has_ref, remote_url
+from pombast.util._git import (
+    bare_clone,
+    default_branch,
+    fetch_tags,
+    has_ref,
+    remote_url,
+)
 
 if TYPE_CHECKING:
     from pombast.core._component import Component
