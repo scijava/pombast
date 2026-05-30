@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pombast.util._git import bare_clone, default_branch, fetch_tags, has_ref
+from pombast.util._git import bare_clone, default_branch, fetch_tags, has_ref, remote_url
 
 if TYPE_CHECKING:
     from pombast.core._component import Component
@@ -75,6 +75,16 @@ class RepoCache:
             fetch_tags(repo)
 
         return repo
+
+    def get_remote_url(self, component: Component) -> str | None:
+        """Return the remote fetch URL from an existing cached bare repository.
+
+        Returns None if no bare repo is cached for this component.
+        """
+        repo = self.repo_path(component)
+        if not repo.exists():
+            return None
+        return remote_url(repo)
 
     def get_default_branch(self, component: Component) -> str:
         """Get the default branch name for a cached repository."""

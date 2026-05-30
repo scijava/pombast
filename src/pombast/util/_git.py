@@ -120,6 +120,26 @@ def ls_remote_tags(url: str) -> list[str]:
     return tags
 
 
+def remote_url(repo: Path) -> str | None:
+    """Get the fetch URL for 'origin' in a bare repository.
+
+    Args:
+        repo: Path to a bare git repository.
+
+    Returns:
+        The remote URL, or None if it cannot be determined.
+    """
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        cwd=repo,
+    )
+    if result.returncode == 0:
+        return result.stdout.strip() or None
+    return None
+
+
 def default_branch(repo: Path) -> str:
     """Get the default branch name from a bare repository's HEAD.
 

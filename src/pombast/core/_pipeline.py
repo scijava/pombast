@@ -21,7 +21,7 @@ from pombast.maven._bom import load_bom
 from pombast.maven._builder import ComponentSource, MavenComponentBuilder
 from pombast.maven._java_version import detect_build_java_version
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
-from pombast.maven._scm import resolve_scm
+from pombast.maven._scm import _guess_tag, resolve_scm
 from pombast.util._git import shallow_clone
 
 if TYPE_CHECKING:
@@ -174,15 +174,32 @@ class Pipeline:
                 component = replace(component, java_version=self.config.default_java)
 
             if not component.scm_url:
-                _log.warning("%s: no SCM URL — skipping", component.coordinate)
-                report.results.append(
-                    BuildResult(
-                        component=component,
-                        status=BuildStatus.ERROR,
-                        skipped_reason="no SCM URL",
+                # SCM info not available from Maven (e.g. POM not yet on Central).
+                # If we have a cached bare repo from a previous run, use its remote
+                # URL as a fallback so we can still fetch and clone the new tag.
+                fallback_url = repo_cache.get_remote_url(component)
+                if fallback_url:
+                    _log.info(
+                        "%s: SCM URL missing from POM; using cached repo URL: %s",
+                        component.coordinate,
+                        fallback_url,
                     )
-                )
-                continue
+                    guessed_tag = _guess_tag(
+                        fallback_url, component.name, component.version
+                    )
+                    component = replace(
+                        component, scm_url=fallback_url, scm_tag=guessed_tag
+                    )
+                else:
+                    _log.warning("%s: no SCM URL — skipping", component.coordinate)
+                    report.results.append(
+                        BuildResult(
+                            component=component,
+                            status=BuildStatus.ERROR,
+                            skipped_reason="no SCM URL",
+                        )
+                    )
+                    continue
 
             # Clone source.
             source_dir = output_dir / component.group / component.name
@@ -218,7 +235,13 @@ class Pipeline:
                     continue
 
             tag_file = source_dir / ".pombast-tag"
-            if tag_file.exists() and tag_file.read_text().strip() == tag:
+            # Sentinel format: "version:git-tag". Including the component version
+            # guards against a stale <scm><tag> in the upstream POM (a common Maven
+            # mistake where the developer forgets to update <scm><tag> when releasing),
+            # which would otherwise cause pombast to reuse an old clone even after a
+            # version bump in the BOM.
+            sentinel = f"{component.version}:{tag}"
+            if tag_file.exists() and tag_file.read_text().strip() == sentinel:
                 _log.info("%s: reusing existing clone at %s", component.coordinate, tag)
             else:
                 if source_dir.exists():
@@ -248,7 +271,7 @@ class Pipeline:
                     patch_pom_urls(pom_file)
                     rewrite_pom_versions(pom_file, dep_mgmt)
 
-                tag_file.write_text(tag + "\n")
+                tag_file.write_text(sentinel + "\n")
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
