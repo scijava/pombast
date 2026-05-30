@@ -11,6 +11,8 @@
 td.smelt { text-align: center; min-width: 3em; }
 td.smelt.has-log { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 td.smelt.has-log:hover { filter: brightness(1.3); }
+#smelt-refresh { opacity: 0.8; cursor: pointer; color: #333; font-size: .9em; font-weight: bold; padding: 0 .2em 0 .2em; margin-left: 0.3em; }
+#smelt-refresh:hover { opacity: 1; }
 #smelt-modal { display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; }
 #smelt-modal.open { display: flex; }
 #smelt-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); }
@@ -29,7 +31,7 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 <table class="sortable">
 <tr>
 {%- for column in columns %}
-<th>{{ column }}</th>
+<th>{{ column }}{% if column == "Smelt" %}<button id="smelt-refresh" title="Refresh smelt data" onclick="loadSmelt(true);event.stopPropagation();">&#x27F3;</button>{% endif %}</th>
 {%- endfor %}
 </tr>
 {%- for row in rows %}
@@ -109,24 +111,33 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
     document.getElementById('smelt-log').innerHTML=au.ansi_to_html(this.dataset.log);
     document.getElementById('smelt-modal').classList.add('open');
   }
-  fetch('smelt.json').then(function(r){return r.json();}).then(function(d){
-    var comps=d.components||{};
-    document.querySelectorAll('tr[data-ga]').forEach(function(tr){
-      var c=comps[tr.dataset.ga],td=tr.querySelector('td.smelt');
-      if(!td||!c)return;
-      var bin=c.binary_test,src=c.source_build;
-      var fail=isFail(bin)||isFail(src),pass=isPass(bin)||isPass(src);
-      td.setAttribute('sorttable_customkey',fail?'1':pass?'2':'3');
-      td.textContent=fail?'❌':pass?'✅':'❔';
-      var log=buildLog(c);
-      if(log){
-        td.classList.add('has-log');
-        td.dataset.log=log;
-        td.dataset.ga=tr.dataset.ga;
-        td.addEventListener('click',showSmelt);
-      }
-    });
-  }).catch(function(){});
+  function loadSmelt(bust){
+    var url='smelt.json'+(bust?'?_='+Date.now():'');
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      var comps=d.components||{};
+      document.querySelectorAll('tr[data-ga]').forEach(function(tr){
+        var oldTd=tr.querySelector('td.smelt');
+        if(!oldTd)return;
+        var td=oldTd.cloneNode(false);
+        oldTd.parentNode.replaceChild(td,oldTd);
+        var c=comps[tr.dataset.ga];
+        if(!c)return;
+        var bin=c.binary_test,src=c.source_build;
+        var fail=isFail(bin)||isFail(src),pass=isPass(bin)||isPass(src);
+        td.setAttribute('sorttable_customkey',fail?'1':pass?'2':'3');
+        td.textContent=fail?'❌':pass?'✅':'❔';
+        var log=buildLog(c);
+        if(log){
+          td.classList.add('has-log');
+          td.dataset.log=log;
+          td.dataset.ga=tr.dataset.ga;
+          td.addEventListener('click',showSmelt);
+        }
+      });
+    }).catch(function(){});
+  }
+  window.loadSmelt=loadSmelt;
+  loadSmelt();
   var modal=document.getElementById('smelt-modal');
   document.getElementById('smelt-close').addEventListener('click',function(){modal.classList.remove('open');});
   document.getElementById('smelt-backdrop').addEventListener('click',function(){modal.classList.remove('open');});
