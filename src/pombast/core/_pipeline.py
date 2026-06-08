@@ -108,7 +108,10 @@ class Pipeline:
             all_components=all_components,
             ctx=ctx,
             success_cache=SuccessCache(cache_dir=self.config.success_cache_dir),
-            extra_properties=self.config.config.build_properties,
+            extra_properties={
+                **self.config.config.build_properties,
+                **self.config.maven_properties,
+            },
             test_binary=self.config.test_binary,
             changes=self.config.changes or None,
         )

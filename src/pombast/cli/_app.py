@@ -24,6 +24,15 @@ from pombast.core._pipeline import Pipeline
 console = Console()
 
 
+def _parse_defines(specs: tuple[str, ...]) -> dict[str, str]:
+    """Parse KEY=VALUE strings into a dict; bare KEY maps to empty string."""
+    result: dict[str, str] = {}
+    for spec in specs:
+        key, sep, value = spec.partition("=")
+        result[key] = value if sep else ""
+    return result
+
+
 @click.group()
 @click.version_option(version=__version__)
 def cli() -> None:
@@ -105,6 +114,13 @@ def cli() -> None:
     default=None,
     help="Write smelt results as JSON to this file.",
 )
+@click.option(
+    "-D",
+    "--define",
+    "define",
+    multiple=True,
+    help="Extra Maven property (KEY=VALUE, repeatable). Passed to every component build.",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def smelt_cmd(
     bom: str,
@@ -120,6 +136,7 @@ def smelt_cmd(
     no_binary_test: bool,
     default_java: int | None,
     json_path: Path | None,
+    define: tuple[str, ...],
     verbose: bool,
 ) -> None:
     """Build and test each BOM component against its pinned dependencies.
@@ -155,6 +172,7 @@ def smelt_cmd(
         force=force,
         skip_build=skip_build,
         test_binary=not no_binary_test,
+        maven_properties=_parse_defines(define),
         verbose=verbose,
         config=pombast_config,
     )
@@ -226,6 +244,13 @@ def smelt_cmd(
     default=None,
     help="Java version to use for mega-melt (e.g., 11).",
 )
+@click.option(
+    "-D",
+    "--define",
+    "define",
+    multiple=True,
+    help="Extra Maven property (KEY=VALUE, repeatable). Passed to the mega-melt build.",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def melt_cmd(
     bom: str,
@@ -236,6 +261,7 @@ def melt_cmd(
     output_dir: Path,
     force: bool,
     java_version: int | None,
+    define: tuple[str, ...],
     verbose: bool,
 ) -> None:
     """Validate the full BOM classpath as a single mega-melt project.
@@ -267,6 +293,7 @@ def melt_cmd(
         includes=list(include),
         excludes=list(exclude),
         default_java=effective_java_version,
+        maven_properties=_parse_defines(define),
         verbose=verbose,
         config=pombast_config,
     )

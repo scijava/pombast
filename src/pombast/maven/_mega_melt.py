@@ -205,6 +205,7 @@ def _write_mega_melt_pom_from_template(
 def run_mega_melt_validation(
     mega_melt_dir: Path,
     java_home: Path | None = None,
+    extra_properties: dict[str, str] | None = None,
 ) -> tuple[bool, Path, Path]:
     """Run mega-melt validation.
 
@@ -222,6 +223,7 @@ def run_mega_melt_validation(
         ["dependency:tree"],
         cwd=mega_melt_dir,
         java_home=java_home,
+        extra_properties=extra_properties,
         log_path=tree_log,
         skip_enforcer=False,
     )
@@ -234,6 +236,7 @@ def run_mega_melt_validation(
         ["validate"],
         cwd=mega_melt_dir,
         java_home=java_home,
+        extra_properties=extra_properties,
         log_path=build_log,
         skip_enforcer=False,
     )

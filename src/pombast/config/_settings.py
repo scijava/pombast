@@ -98,6 +98,7 @@ class MegaMeltConfig:
     java_version: int | None = None
     template: Path | None = None  # resolved absolute path to a template POM
     filter: FilterConfig = field(default_factory=FilterConfig)
+    maven_properties: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -142,6 +143,7 @@ class PombastConfig:
                 includes=melt_data.get("includes", []),
                 excludes=melt_data.get("excludes", []),
             ),
+            maven_properties=melt_data.get("properties", {}),
         )
 
         def resolve(section: dict, key: str) -> Path | None:
@@ -227,6 +229,7 @@ class PipelineConfig:
     force: bool = False
     skip_build: bool = False
     test_binary: bool = True
+    maven_properties: dict[str, str] = field(default_factory=dict)
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)
 
@@ -242,5 +245,6 @@ class MeltConfig:
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
     default_java: int | None = None
+    maven_properties: dict[str, str] = field(default_factory=dict)
     verbose: bool = False
     config: PombastConfig = field(default_factory=PombastConfig.empty)

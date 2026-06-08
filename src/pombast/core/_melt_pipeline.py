@@ -53,6 +53,11 @@ class MeltPipeline:
 
         template_path = self.config.config.mega_melt.template
 
+        maven_properties = {
+            **self.config.config.mega_melt.maven_properties,
+            **self.config.maven_properties,
+        }
+
         mega_melt_dir = output_dir / "mega-melt"
         try:
             prepare_mega_melt(
@@ -63,7 +68,9 @@ class MeltPipeline:
                 template_path=template_path,
             )
             success, tree_log, build_log = run_mega_melt_validation(
-                mega_melt_dir, java_home=java_home
+                mega_melt_dir,
+                java_home=java_home,
+                extra_properties=maven_properties or None,
             )
         except Exception as e:
             _log.error("Mega-melt failed: %s", e)
