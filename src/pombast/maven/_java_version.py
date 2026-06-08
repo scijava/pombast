@@ -1,120 +1,189 @@
-"""Detect the minimum Java version needed to build and test a component."""
+"""Detect the minimum Java version needed to build and test a component, and
+render the resolved dependency tree used to reach that decision."""
 
 from __future__ import annotations
 
+import io
 import logging
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from jgo.env._bytecode import detect_jar_java_version
-from jgo.maven import MavenContext, Model
+from jgo.cli.rich import format_dependency_tree
+from jgo.env import cached_jar_java_version
+from jgo.maven import POM, MavenContext, Model
+from rich.console import Console
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from jgo.maven import DependencyNode
+
     from pombast.core._component import Component
 
 _log = logging.getLogger(__name__)
 
+_LTS_VERSIONS = (8, 11, 17, 21, 25)
 
-def detect_build_java_version(
+
+@dataclass
+class JavaVersionAnalysis:
+    """Outcome of analyzing a component's dependency closure for its Java version.
+
+    Attributes:
+        java_version: Minimum JDK to use, rounded up to the nearest LTS. None if
+            detection failed.
+        raw_max: Highest bytecode version actually observed, before LTS rounding.
+        drivers: Coordinates of the dependencies whose bytecode is at ``raw_max``
+            (i.e. the artifacts that forced the choice).
+        tree: The resolved (BOM-pinned) dependency tree, for rendering to a log.
+    """
+
+    java_version: int | None = None
+    raw_max: int | None = None
+    drivers: list[str] = field(default_factory=list)
+    tree: DependencyNode | None = None
+
+
+def analyze_build_java(
     component: Component,
     ctx: MavenContext,
-    bom_dep_mgmt: dict | None = None,
-) -> int | None:
-    """Detect the minimum Java version needed to build and test a component.
+    pom_path: Path,
+) -> JavaVersionAnalysis:
+    """Resolve a component's full transitive closure and detect its build Java version.
 
-    Unlike jgo's runtime analysis which only considers compile+runtime scope,
-    this considers ALL dependency scopes including test, because pombast needs
-    to compile and run tests. A test dependency like mockito-core may require
-    a higher Java version than the component itself.
+    Unlike jgo's runtime analysis (which only considers compile+runtime scope), this
+    walks the entire resolved closure *including* direct test-scope dependencies,
+    because pombast must compile and run the test suite. Crucially it inspects
+    transitive dependencies too: the Java requirement frequently comes from an
+    indirectly pulled artifact (e.g. SciFIO compiled for Java 11) rather than anything
+    the component declares directly. Inspecting only the directly declared
+    dependencies would silently miss that and select too low a JDK.
+
+    Resolution is driven from the component's *rewritten* POM on disk — the one
+    pombast has already pinned to the BOM under test — so jgo resolves exactly the
+    same versions Maven will build (e.g. SciFIO 0.49.0, which is Java 11). This keeps
+    jgo as the single source of resolution truth; pombast does not second-guess
+    dependency management in Python.
 
     Args:
-        component: The component to analyze.
-        ctx: Maven context for fetching POMs and JARs.
-        bom_dep_mgmt: The BOM's dependency management dict, used as
-            root_dep_mgmt so that BOM-pinned versions (e.g., mockito 5.x)
-            take precedence over the component's own dependency management.
+        component: The component being analyzed (for the own-JAR check and labels).
+        ctx: Maven context for resolving JARs.
+        pom_path: Path to the rewritten, BOM-pinned ``pom.xml`` in the clone.
 
     Returns:
-        Minimum Java version required (e.g., 8, 11, 17), or None if
-        detection fails.
+        A JavaVersionAnalysis. On failure its fields are left at their defaults
+        (``java_version`` is None, ``tree`` is None).
     """
+    analysis = JavaVersionAnalysis()
     try:
-        pom = (
-            ctx.project(component.group, component.name)
-            .at_version(component.version)
-            .pom()
-        )
-        model = Model(pom, ctx, root_dep_mgmt=bom_dep_mgmt, lenient=True)
+        model = Model(POM(pom_path), ctx, lenient=True)
+        deps, analysis.tree = model.dependencies()
     except Exception:
         _log.warning(
-            "%s: failed to build model for Java version detection",
+            "%s: failed to resolve dependencies for Java version detection",
             component.coordinate,
         )
-        return None
+        return analysis
 
-    max_java_version: int | None = None
-
-    # Check all dependencies including test scope.
-    for (_g, _a, _c, _t), dep in model.deps.items():
-        try:
-            jar_path = dep.artifact.resolve()
-        except Exception:
-            _log.debug(
-                "%s: could not resolve JAR for %s:%s:%s",
-                component.coordinate,
-                dep.groupId,
-                dep.artifactId,
-                dep.version,
-            )
-            continue
-
-        if jar_path is None or not jar_path.exists():
-            continue
-
-        java_version = detect_jar_java_version(jar_path, round_to_lts_version=False)
-        if java_version is not None:
-            if max_java_version is None or java_version > max_java_version:
-                _log.debug(
-                    "%s: %s:%s:%s requires Java %d",
-                    component.coordinate,
-                    dep.groupId,
-                    dep.artifactId,
-                    dep.version,
-                    java_version,
-                )
-                max_java_version = java_version
-
-    # Also check the component's own JAR.
+    # Every artifact in the resolved closure, plus the component's own JAR.
+    artifacts = [(f"{d.groupId}:{d.artifactId}:{d.version}", d.artifact) for d in deps]
     try:
-        own_jar = (
-            ctx.project(component.group, component.name)
-            .at_version(component.version)
-            .artifact()
-            .resolve()
+        artifacts.append(
+            (
+                component.coordinate,
+                ctx.project(component.group, component.name)
+                .at_version(component.version)
+                .artifact(),
+            )
         )
-        if own_jar and own_jar.exists():
-            own_version = detect_jar_java_version(own_jar, round_to_lts_version=False)
-            if own_version is not None:
-                if max_java_version is None or own_version > max_java_version:
-                    max_java_version = own_version
     except Exception:
         pass
 
-    if max_java_version is not None:
-        # Round up to LTS for practical JDK selection.
-        max_java_version = _round_to_lts(max_java_version)
+    max_version: int | None = None
+    drivers: list[str] = []
+    for coord, artifact in artifacts:
+        # jgo resolves the JAR and caches the bytecode scan per artifact (in-process
+        # plus on disk), so repeated lookups across components stay cheap.
+        jver = cached_jar_java_version(artifact, round_to_lts_version=False)
+        if jver is None:
+            continue
+        if max_version is None or jver > max_version:
+            max_version = jver
+            drivers = [coord]
+        elif jver == max_version:
+            drivers.append(coord)
+
+    if max_version is not None:
+        analysis.raw_max = max_version
+        analysis.drivers = drivers
+        analysis.java_version = _round_to_lts(max_version)
         _log.info(
             "%s: detected build Java version: %d",
             component.coordinate,
-            max_java_version,
+            analysis.java_version,
         )
 
-    return max_java_version
+    return analysis
+
+
+def write_dependency_tree_log(
+    analysis: JavaVersionAnalysis,
+    component: Component,
+    log_path: Path,
+) -> None:
+    """Write the resolved dependency tree plus the Java-version rationale to a log.
+
+    This is the per-component analog of the ``dependency-tree.log`` that mega-melt
+    writes, rendered from the same resolution pombast used to pick the JDK (so it
+    can't disagree with that choice). The summary header calls out which dependency
+    forced the Java version, making failures like a transitively-pulled Java 11
+    artifact on a Java 8 build self-explanatory.
+
+    Best-effort: any failure to render or write is logged at debug level and
+    swallowed, since a diagnostic log must never fail the build.
+    """
+    if analysis.tree is None:
+        return
+    try:
+        tree = format_dependency_tree(analysis.tree, no_wrap=True)
+        buf = io.StringIO()
+        # Plain text (no ANSI) so the log greps cleanly.
+        Console(file=buf, color_system=None, width=200).print(tree)
+
+        header = [
+            f"Dependency tree for {component.coordinate}",
+            "Versions resolved against the BOM under test (jgo resolution).",
+            "",
+        ]
+        if analysis.java_version is None:
+            header.append("Detected build Java version: unknown")
+        else:
+            rounded = (
+                f" (rounded up from Java {analysis.raw_max})"
+                if analysis.raw_max and analysis.raw_max != analysis.java_version
+                else ""
+            )
+            header.append(
+                f"Detected build Java version: {analysis.java_version}{rounded}"
+            )
+            if analysis.raw_max and analysis.raw_max > 8 and analysis.drivers:
+                header.append(f"Required by (Java {analysis.raw_max} bytecode):")
+                header.extend(f"  - {coord}" for coord in analysis.drivers)
+            else:
+                header.append("No dependency requires newer than Java 8.")
+        header.append("")
+
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("\n".join(header) + "\n" + buf.getvalue())
+    except Exception as e:
+        _log.debug(
+            "%s: could not write dependency tree log: %s", component.coordinate, e
+        )
 
 
 def _round_to_lts(version: int) -> int:
     """Round a Java version up to the nearest LTS version."""
-    lts_versions = [8, 11, 17, 21, 25]
-    for lts in lts_versions:
+    for lts in _LTS_VERSIONS:
         if version <= lts:
             return lts
     return version
