@@ -19,7 +19,7 @@ from pombast.core._component import (
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._builder import ComponentSource, MavenComponentBuilder
-from pombast.maven._java_version import detect_build_java_version
+from pombast.maven._java_version import analyze_build_java, write_dependency_tree_log
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 from pombast.maven._scm import _guess_tag, resolve_scm
 from pombast.util._git import shallow_clone
@@ -153,28 +153,10 @@ class Pipeline:
                 )
                 continue
 
-            # Resolve SCM info and detect build Java version.
+            # Resolve SCM info. The build Java version is detected later, after the
+            # source is cloned and its POM rewritten, so jgo resolves from the same
+            # BOM-pinned POM that Maven will build.
             component = resolve_scm(component, ctx)
-
-            # Check for per-component Java version override from config.
-            comp_override = self.config.config.component_overrides.get(component.ga)
-            if comp_override and "java-version" in comp_override:
-                java_ver = comp_override["java-version"]
-                if not isinstance(java_ver, (int, str)):
-                    raise ValueError(
-                        f"java-version must be int or str, got {type(java_ver).__name__!r}"
-                    )
-                component = replace(component, java_version=int(java_ver))
-            elif component.java_version is None:
-                java_version = detect_build_java_version(
-                    component, ctx, bom_dep_mgmt=dep_mgmt
-                )
-                if java_version is not None:
-                    component = replace(component, java_version=java_version)
-
-            # Fall back to default Java version if component has none.
-            if component.java_version is None and self.config.default_java is not None:
-                component = replace(component, java_version=self.config.default_java)
 
             if not component.scm_url:
                 # SCM info not available from Maven (e.g. POM not yet on Central).
@@ -285,6 +267,29 @@ class Pipeline:
                     rewrite_pom_versions(pom_file, dep_mgmt)
 
                 tag_file.write_text(sentinel + "\n")
+
+            # Determine the build JDK from the rewritten (BOM-pinned) POM, so jgo
+            # resolves exactly the dependency set Maven will build. A per-component
+            # override wins; otherwise use the detected version, then the default.
+            analysis = analyze_build_java(component, ctx, source_dir / "pom.xml")
+            comp_override = self.config.config.component_overrides.get(component.ga)
+            if comp_override and "java-version" in comp_override:
+                java_ver = comp_override["java-version"]
+                if not isinstance(java_ver, (int, str)):
+                    raise ValueError(
+                        f"java-version must be int or str, got {type(java_ver).__name__!r}"
+                    )
+                component = replace(component, java_version=int(java_ver))
+            elif component.java_version is None and analysis.java_version is not None:
+                component = replace(component, java_version=analysis.java_version)
+            if component.java_version is None and self.config.default_java is not None:
+                component = replace(component, java_version=self.config.default_java)
+
+            # Record the resolved dependency tree (with Java-version rationale) next
+            # to the build logs, mirroring mega-melt's dependency-tree.log.
+            write_dependency_tree_log(
+                analysis, component, source_dir / "dependency-tree.log"
+            )
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
