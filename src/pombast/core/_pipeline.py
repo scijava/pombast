@@ -285,6 +285,15 @@ class Pipeline:
             if component.java_version is None and self.config.default_java is not None:
                 component = replace(component, java_version=self.config.default_java)
 
+            # Extract per-component Maven property overrides.
+            comp_properties: dict[str, str] = {}
+            if comp_override and "properties" in comp_override:
+                raw = comp_override["properties"]
+                if isinstance(raw, dict):
+                    comp_properties = {
+                        str(k): str(v) if v is not None else "" for k, v in raw.items()
+                    }
+
             # Record the resolved dependency tree (with Java-version rationale) next
             # to the build logs, mirroring mega-melt's dependency-tree.log.
             write_dependency_tree_log(
@@ -293,7 +302,7 @@ class Pipeline:
 
             # Build and test.
             source = ComponentSource(component=component, source_dir=source_dir)
-            result = builder.build_and_test(source)
+            result = builder.build_and_test(source, extra_properties=comp_properties)
             report.results.append(result)
 
         report.end_time = datetime.now(timezone.utc)

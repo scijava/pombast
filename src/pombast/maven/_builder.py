@@ -56,7 +56,11 @@ class MavenComponentBuilder:
         self.test_binary = test_binary
         self._fingerprint = fingerprint(all_components, changes)
 
-    def build_and_test(self, source: ComponentSource) -> BuildResult:
+    def build_and_test(
+        self,
+        source: ComponentSource,
+        extra_properties: dict[str, str] | None = None,
+    ) -> BuildResult:
         """Build and test a single component.
 
         Steps:
@@ -68,12 +72,16 @@ class MavenComponentBuilder:
 
         Args:
             source: The checked-out component source.
+            extra_properties: Per-component Maven properties that are merged on
+                top of the global ``extra_properties`` set at construction time.
 
         Returns:
             BuildResult with status, log path, and duration.
         """
         component = source.component
         log_dir = self.output_dir / component.group / component.name
+
+        merged = {**self.extra_properties, **(extra_properties or {})}
 
         # Locate Java for this component.
         java_home = self._find_java(component)
@@ -83,7 +91,7 @@ class MavenComponentBuilder:
         binary_log_path = None
         if self.test_binary:
             binary_status, binary_log_path = self._test_binary(
-                source, java_home, log_dir
+                source, java_home, log_dir, extra_properties=merged
             )
 
         # Phase 2: Rebuild from source.
@@ -94,7 +102,7 @@ class MavenComponentBuilder:
                 ["clean", "test"],
                 cwd=source.source_dir,
                 java_home=java_home,
-                extra_properties=self.extra_properties,
+                extra_properties=merged,
                 log_path=source_log_path,
                 color=True,
             )
@@ -143,6 +151,7 @@ class MavenComponentBuilder:
         source: ComponentSource,
         java_home: Path | None,
         log_dir: Path,
+        extra_properties: dict[str, str] | None = None,
     ) -> tuple[BuildStatus | None, Path | None]:
         """Test the deployed binary against BOM-pinned dependencies.
 
@@ -186,7 +195,7 @@ class MavenComponentBuilder:
                 cwd=source.source_dir,
                 java_home=java_home,
                 extra_properties={
-                    **self.extra_properties,
+                    **(extra_properties or self.extra_properties),
                     "maven.main.skip": "true",
                     "maven.resources.skip": "true",
                 },
