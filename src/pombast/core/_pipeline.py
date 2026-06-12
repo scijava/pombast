@@ -105,7 +105,6 @@ class Pipeline:
         repo_cache = RepoCache()
         builder = MavenComponentBuilder(
             output_dir=output_dir,
-            all_components=all_components,
             ctx=ctx,
             success_cache=SuccessCache(cache_dir=self.config.success_cache_dir),
             extra_properties={
@@ -113,7 +112,6 @@ class Pipeline:
                 **self.config.maven_properties,
             },
             test_binary=self.config.test_binary,
-            changes=self.config.changes or None,
         )
 
         # Precompute changed G:A set once for prune filtering.
@@ -201,11 +199,11 @@ class Pipeline:
                 )
                 continue
 
-            # Check prior-success cache before cloning.
+            # Check prior-success cache before cloning. A hit means a previously
+            # recorded dependency closure for this component still pins to the
+            # same versions in the BOM under test — no clone or resolution needed.
             if not builder.success_cache.is_snapshot(component):
-                if builder.success_cache.has_prior_success(
-                    component, builder._fingerprint
-                ):
+                if builder.success_cache.has_prior_success(component, dep_mgmt):
                     _log.info(
                         "%s: skipping — prior success with same pins",
                         component.coordinate,
@@ -300,9 +298,12 @@ class Pipeline:
                 analysis, component, source_dir / "dependency-tree.log"
             )
 
-            # Build and test.
+            # Build and test. The resolved closure from Java-version analysis
+            # doubles as the success-cache key, so no second resolution is needed.
             source = ComponentSource(component=component, source_dir=source_dir)
-            result = builder.build_and_test(source, extra_properties=comp_properties)
+            result = builder.build_and_test(
+                source, closure=analysis.closure, extra_properties=comp_properties
+            )
             report.results.append(result)
 
         report.end_time = datetime.now(timezone.utc)

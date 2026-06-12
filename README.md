@@ -253,9 +253,12 @@ compatible versions through its own resolution logic.
 Pombast caches two things under `~/.cache/pombast/`:
 
 - **`repos/`** — bare Git clones of component repositories, reused across runs.
-- **`success/`** — fingerprints of successful builds. If a component's BOM
-  fingerprint hasn't changed since the last successful build, it is skipped
-  (unless the version is a SNAPSHOT).
+- **`success/`** — the resolved dependency closures of successful builds, one
+  file per component. A component is skipped when any recorded closure still
+  pins to the same versions in the BOM under test — that is, when none of *its
+  own* dependencies have changed (unless the component, or one of those pins, is
+  a SNAPSHOT). Which other components are being smelted has no bearing on the
+  key, so excluding or bumping unrelated components never invalidates the cache.
 
 ---
 
