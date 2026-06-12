@@ -304,6 +304,9 @@ class Pipeline:
             result = builder.build_and_test(
                 source, closure=analysis.closure, extra_properties=comp_properties
             )
+            # Carry the bytecode/closure analysis onto the result so it can be
+            # serialized into smelt.json for the status report's Bytecode column.
+            result.analysis = analysis
             report.results.append(result)
 
         report.end_time = datetime.now(timezone.utc)

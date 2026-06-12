@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
+    from pombast.maven._java_version import JavaVersionAnalysis
+
 
 @dataclass(frozen=True)
 class Component:
@@ -59,6 +61,7 @@ class BuildResult:
     skipped_reason: str | None = None
     binary_status: BuildStatus | None = None
     binary_log_path: Path | None = None
+    analysis: JavaVersionAnalysis | None = None
 
     @property
     def ok(self) -> bool:

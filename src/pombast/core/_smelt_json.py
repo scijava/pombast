@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
     from pombast.core._component import BuildResult, BuildStatus, ValidationReport
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _FALLBACK_TAIL = 50
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -63,7 +63,7 @@ def _is_failing(status: BuildStatus | None) -> bool:
 def _component_entry(result: BuildResult) -> dict:
     binary_str = _status_str(result.binary_status)
     source_str = _status_str(result.status)
-    return {
+    entry = {
         "version": result.component.version,
         "binary_test": binary_str,
         "source_build": source_str,
@@ -74,6 +74,31 @@ def _component_entry(result: BuildResult) -> dict:
         "source_log": _extract_log(result.log_path)
         if _is_failing(result.status)
         else None,
+    }
+    entry.update(_bytecode_fields(result))
+    return entry
+
+
+def _bytecode_fields(result: BuildResult) -> dict:
+    """Return the bytecode/closure fields for a component entry.
+
+    Populated only when a JavaVersionAnalysis is present on the result (i.e. the
+    component was freshly resolved this run). Cache-hit / skipped / errored
+    components carry no analysis, so the keys are omitted and the status report
+    renders a blank Bytecode cell for them. ``effective_bytecode`` is the floor
+    across the component's own JAR plus its closure; ``own_bytecode`` is the
+    component's JAR alone. ``closure`` does double duty as the input to the
+    consumer graph used for bump classification.
+    """
+    analysis = result.analysis
+    if analysis is None:
+        return {}
+    return {
+        "own_bytecode": analysis.own_bytecode,
+        "effective_bytecode": analysis.raw_max,
+        "build_java": analysis.java_version,
+        "drivers": analysis.drivers,
+        "closure": analysis.closure,
     }
 
 

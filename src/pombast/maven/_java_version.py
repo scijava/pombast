@@ -32,7 +32,13 @@ class JavaVersionAnalysis:
     Attributes:
         java_version: Minimum JDK to use, rounded up to the nearest LTS. None if
             detection failed.
-        raw_max: Highest bytecode version actually observed, before LTS rounding.
+        raw_max: Highest bytecode version actually observed across the component's
+            own JAR *and* its dependency closure, before LTS rounding. This is the
+            component's *effective* bytecode floor — the lowest JVM that can run it
+            together with its BOM-pinned dependencies.
+        own_bytecode: Bytecode version of the component's own JAR alone, before LTS
+            rounding. May be lower than ``raw_max`` when a dependency forces a higher
+            floor. None if the component's JAR could not be scanned.
         drivers: Coordinates of the dependencies whose bytecode is at ``raw_max``
             (i.e. the artifacts that forced the choice).
         tree: The resolved (BOM-pinned) dependency tree, for rendering to a log.
@@ -43,6 +49,7 @@ class JavaVersionAnalysis:
 
     java_version: int | None = None
     raw_max: int | None = None
+    own_bytecode: int | None = None
     drivers: list[str] = field(default_factory=list)
     tree: DependencyNode | None = None
     closure: list[str] = field(default_factory=list)
@@ -111,6 +118,7 @@ def analyze_build_java(
         pass
 
     max_version: int | None = None
+    own_bytecode: int | None = None
     drivers: list[str] = []
     for coord, artifact in artifacts:
         # jgo resolves the JAR and caches the bytecode scan per artifact (in-process
@@ -118,12 +126,15 @@ def analyze_build_java(
         jver = jar_java_version(artifact, round_to_lts_version=False)
         if jver is None:
             continue
+        if coord == component.coordinate:
+            own_bytecode = jver
         if max_version is None or jver > max_version:
             max_version = jver
             drivers = [coord]
         elif jver == max_version:
             drivers.append(coord)
 
+    analysis.own_bytecode = own_bytecode
     if max_version is not None:
         analysis.raw_max = max_version
         analysis.drivers = drivers
