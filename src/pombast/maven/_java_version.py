@@ -36,12 +36,16 @@ class JavaVersionAnalysis:
         drivers: Coordinates of the dependencies whose bytecode is at ``raw_max``
             (i.e. the artifacts that forced the choice).
         tree: The resolved (BOM-pinned) dependency tree, for rendering to a log.
+        closure: The fully resolved dependency set as ``g:a:c:t:v`` (GACT plus
+            version) entries — the per-component success-cache key. Excludes the
+            component's own artifact; empty if resolution failed.
     """
 
     java_version: int | None = None
     raw_max: int | None = None
     drivers: list[str] = field(default_factory=list)
     tree: DependencyNode | None = None
+    closure: list[str] = field(default_factory=list)
 
 
 def analyze_build_java(
@@ -84,6 +88,13 @@ def analyze_build_java(
             component.coordinate,
         )
         return analysis
+
+    # The fully resolved dependency set is also the per-component success-cache
+    # key: record each entry with full GACT precision so it can be revalidated
+    # against the GACT-keyed BOM dependency management on a later run.
+    analysis.closure = sorted(
+        f"{d.groupId}:{d.artifactId}:{d.classifier}:{d.type}:{d.version}" for d in deps
+    )
 
     # Every artifact in the resolved closure, plus the component's own JAR.
     artifacts = [(f"{d.groupId}:{d.artifactId}:{d.version}", d.artifact) for d in deps]

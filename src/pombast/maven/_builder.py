@@ -10,7 +10,6 @@ import zipfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from pombast.cache._fingerprint import fingerprint
 from pombast.cache._success import SuccessCache
 from pombast.core._component import BuildResult, BuildStatus, Component
 from pombast.util._process import run_maven
@@ -42,37 +41,38 @@ class MavenComponentBuilder:
     def __init__(
         self,
         output_dir: Path,
-        all_components: list[Component],
         ctx: MavenContext,
         success_cache: SuccessCache | None = None,
         extra_properties: dict[str, str] | None = None,
         test_binary: bool = True,
-        changes: list[str] | None = None,
     ) -> None:
         self.output_dir = output_dir
-        self.all_components = all_components
         self.ctx = ctx
         self.success_cache = success_cache or SuccessCache()
         self.extra_properties = extra_properties or {}
         self.test_binary = test_binary
-        self._fingerprint = fingerprint(all_components, changes)
 
     def build_and_test(
         self,
         source: ComponentSource,
+        closure: list[str] | None = None,
         extra_properties: dict[str, str] | None = None,
     ) -> BuildResult:
         """Build and test a single component.
 
         Steps:
-        1. Check prior-success cache — skip if unchanged
-        2. Locate appropriate JDK
-        3. (Optional) Test deployed binary against pinned deps
-        4. Rebuild from source with pinned deps
-        5. Record success/failure
+        1. Locate appropriate JDK
+        2. (Optional) Test deployed binary against pinned deps
+        3. Rebuild from source with pinned deps
+        4. On success, record the resolved dependency closure as the cache key
+
+        The prior-success check happens earlier in the pipeline (before cloning),
+        so by the time this runs a build is warranted.
 
         Args:
             source: The checked-out component source.
+            closure: The resolved dependency set (``g:a:c:t:v`` entries) recorded
+                as the success-cache key if the build passes.
             extra_properties: Per-component Maven properties that are merged on
                 top of the global ``extra_properties`` set at construction time.
 
@@ -117,7 +117,7 @@ class MavenComponentBuilder:
                 _log.info(
                     "%s: source build SUCCESS (%.1fs)", component.coordinate, duration
                 )
-                self.success_cache.record_success(component, self._fingerprint)
+                self.success_cache.record_success(component, closure or [])
                 return BuildResult(
                     component=component,
                     status=BuildStatus.SUCCESS,
