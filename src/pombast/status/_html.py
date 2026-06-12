@@ -10,10 +10,18 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from pombast.status._drift import format_duration
 
 if TYPE_CHECKING:
+    from pombast.maven._bytecode import LadderStep
     from pombast.status._entry import StatusEntry
 
 
 _COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build", "Bytecode", "Smelt"]
+
+# Beyond-flat frontier markers for the Release cell: (symbol, css-suffix).
+_FRONTIER_MARKERS = {
+    "local": ("°", "local"),
+    "cascading": ("*", "cascading"),
+    "excluded": ("×", "excluded"),
+}
 
 _env = Environment(
     loader=PackageLoader("pombast.status", "templates"),
@@ -79,6 +87,46 @@ def _drift_data(entry: StatusEntry) -> dict[str, Any]:
     }
 
 
+def _ladder_tooltip(ladder: list[LadderStep]) -> str:
+    """Render the per-candidate bump ladder as a Release-cell tooltip."""
+    lines = []
+    for step in ladder:
+        level = f"J{step.java_level}" if step.java_level else "J?"
+        line = f"{step.version}  {level}  {step.klass}"
+        if step.klass == "cascading" and step.lifted:
+            shown = ", ".join(step.lifted[:3])
+            extra = f" (+{len(step.lifted) - 3})" if len(step.lifted) > 3 else ""
+            line += f" — lifts {shown}{extra}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _release_data(
+    entry: StatusEntry, g: str, a: str, nexus_base: str
+) -> dict[str, Any]:
+    """Build the Release-cell data: target version, link, and frontier marker."""
+    bom_v = entry.bom_version
+    classified = bool(entry.version_ladder)
+    if classified:
+        target_v = entry.recommended_version or bom_v
+    else:
+        target_v = entry.latest_version or bom_v
+    symbol, cls = ("", "")
+    tooltip = ""
+    if classified:
+        marker = _FRONTIER_MARKERS.get(entry.frontier_class or "")
+        if marker:
+            symbol, cls = marker
+            tooltip = _ladder_tooltip(entry.version_ladder)
+    return {
+        "target_version": target_v,
+        "target_link": _nexus_link(g, a, target_v, nexus_base),
+        "frontier_symbol": symbol,
+        "frontier_cls": cls,
+        "frontier_tooltip": tooltip,
+    }
+
+
 def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
     g = entry.component.group
     a = entry.component.name
@@ -98,6 +146,7 @@ def _row_data(entry: StatusEntry, nexus_base: str) -> dict[str, Any]:
         "latest_version": latest_v,
         "bom_link": _nexus_link(g, a, bom_v, nexus_base),
         "latest_link": _nexus_link(g, a, latest_v, nexus_base),
+        "release": _release_data(entry, g, a, nexus_base),
         "drift": _drift_data(entry),
         "action": entry.action,
         "action_key": action_key,

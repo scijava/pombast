@@ -81,6 +81,10 @@ class StatusConfig:
     nexus_base: str = ""
     default_ci_badge: str = "build"
     cuttable: list[str] = field(default_factory=list)
+    # Highest JVM the BOM commits to supporting at runtime. A candidate version
+    # whose effective bytecode floor exceeds this is classified "excluded" (it
+    # would need a newer JVM than the BOM targets) rather than recommended.
+    runtime_cap: int = 21
 
 
 @dataclass
@@ -161,6 +165,7 @@ class PombastConfig:
             footer=resolve(status_data, "footer"),
             nexus_base=status_data.get("nexus-base", ""),
             cuttable=status_data.get("cuttable", []),
+            runtime_cap=int(status_data.get("runtime-cap", 21)),
         )
 
         badges_data = data.get("badges", {})

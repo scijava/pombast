@@ -8,6 +8,10 @@
 <script type="text/javascript" src="sorttable.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ansi_up@5/ansi_up.js"></script>
 <style>
+span.frontier { cursor: help; font-weight: bold; }
+span.frontier-local { color: #2aa198; }
+span.frontier-cascading { color: #b58900; }
+span.frontier-excluded { color: #dc322f; }
 td.bytecode { text-align: center; min-width: 3em; white-space: nowrap; }
 td.bytecode.lifted { cursor: help; }
 td.bytecode .own { color: #888; }
@@ -49,11 +53,12 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 {%- endif -%}
 </td>
 <td>
-{%- if row.bom_version == row.latest_version -%}
-{{ row.latest_link | safe }}
+{%- if row.bom_version == row.release.target_version -%}
+{{ row.release.target_link | safe }}
 {%- else -%}
-{{ row.bom_link | safe }} &rarr; {{ row.latest_link | safe }}
+{{ row.bom_link | safe }} &rarr; {{ row.release.target_link | safe }}
 {%- endif -%}
+{%- if row.release.frontier_symbol %} <span class="frontier frontier-{{ row.release.frontier_cls }}" title="{{ row.release.frontier_tooltip }}">{{ row.release.frontier_symbol }}</span>{% endif -%}
 </td>
 <td{% if row.drift.cls %} class="{{ row.drift.cls }}"{% endif %} sorttable_customkey="{{ row.drift.sort_key }}"{% if row.drift.tooltip %} title="{{ row.drift.tooltip }}"{% endif %}>{{ row.drift.html | safe }}</td>
 <td sorttable_customkey="{{ row.action_key }}">{{ row.action }}</td>

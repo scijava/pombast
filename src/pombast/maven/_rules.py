@@ -99,3 +99,28 @@ class RulesXML:
         if not candidates:
             return None
         return max(candidates, key=cmp_to_key(compare_versions))
+
+    def acceptable_above(
+        self,
+        group_id: str,
+        artifact_id: str,
+        versions: list[str],
+        current: str,
+    ) -> list[str]:
+        """Return accepted release versions strictly newer than ``current``.
+
+        This is the quality-filtered candidate set — the input to the bytecode
+        gate, which classifies each remaining candidate's blast radius. Versions
+        are returned newest-first so the caller can scan from the top and stop
+        early. SNAPSHOTs and rules.xml-ignored versions are excluded.
+        """
+        from jgo.maven import compare_versions
+
+        candidates = [
+            v
+            for v in versions
+            if not v.endswith("-SNAPSHOT")
+            and not self.is_ignored(group_id, artifact_id, v)
+            and compare_versions(v, current) > 0
+        ]
+        return sorted(candidates, key=cmp_to_key(compare_versions), reverse=True)

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pombast.core._component import Component
+    from pombast.maven._bytecode import LadderStep
 
 _SNAPSHOT_THRESHOLD = timedelta(days=1)
 
@@ -24,6 +25,14 @@ class StatusEntry:
     project_url: str | None
     ci_html: str | None
     cuttable: bool = True
+    # Bytecode-aware bump classification (populated only when smelt data is
+    # available). recommended_version is the newest "flat" bump (one that does
+    # not raise the component's effective bytecode floor); frontier_class is the
+    # worst blast-radius class among available bumps beyond it; version_ladder
+    # is the per-candidate breakdown for the Release-cell tooltip.
+    recommended_version: str | None = None
+    frontier_class: str | None = None
+    version_ladder: list[LadderStep] = field(default_factory=list)
 
     @property
     def bom_version(self) -> str:

@@ -110,6 +110,13 @@ console = Console()
     help="Ignore all caches and fetch fresh data (equivalent to --max-age 0).",
 )
 @click.option(
+    "--classify/--no-classify",
+    default=True,
+    show_default=True,
+    help="Classify bumps by bytecode-floor blast radius (needs --smelt; scans "
+    "candidate JARs).",
+)
+@click.option(
     "--nexus-base",
     "nexus_base",
     default=None,
@@ -153,6 +160,7 @@ def status_cmd(
     workers: int,
     max_age: int,
     refresh: bool,
+    classify: bool,
     verbose: bool,
 ) -> None:
     """Show release status of all components in a BOM.
@@ -242,6 +250,9 @@ def status_cmd(
             fetch_timestamps=not no_timestamps,
             workers=workers,
             max_age=effective_max_age or None,
+            smelt_components=smelt_components,
+            classify=classify and smelt_components is not None,
+            runtime_cap=sc.runtime_cap,
         ):
             entries.append(entry)
             progress.update(
@@ -321,6 +332,34 @@ def _bytecode_cell(comp_data: dict | None) -> str:
     return f"{own} [dim]→[/dim] [yellow]{eff}[/yellow]"
 
 
+# Frontier markers for the Release cell: a bump beyond the recommended (flat)
+# one exists at this blast-radius class. Only beyond-flat classes get a marker.
+_FRONTIER_MARKERS = {
+    "local": " [cyan]°[/cyan]",
+    "cascading": " [yellow]*[/yellow]",
+    "excluded": " [red]×[/red]",
+}
+
+
+def _release_str(e: StatusEntry) -> str:
+    """Render the Release cell: bom → recommended bump, plus a frontier marker.
+
+    When bump classification ran (version_ladder is non-empty), the target is the
+    newest *flat* bump (one that does not raise the bytecode floor), and a marker
+    flags that riskier bumps exist beyond it. Otherwise it falls back to the
+    newest acceptable version.
+    """
+    classified = bool(e.version_ladder)
+    target = (
+        (e.recommended_version or e.bom_version)
+        if classified
+        else (e.latest_version or e.bom_version)
+    )
+    base = e.bom_version if target == e.bom_version else f"{e.bom_version} → {target}"
+    marker = _FRONTIER_MARKERS.get(e.frontier_class or "", "") if classified else ""
+    return base + marker
+
+
 def _print_status_table(
     entries: list[StatusEntry],
     smelt: dict[str, dict] | None = None,
@@ -336,11 +375,7 @@ def _print_status_table(
         table.add_column("Source", justify="center")
 
     for e in entries:
-        latest = e.latest_version or e.bom_version
-        if latest == e.bom_version:
-            release_str = e.bom_version
-        else:
-            release_str = f"{e.bom_version} → {latest}"
+        release_str = _release_str(e)
         drift_str = drift_text(e)
         if drift_str == "—":
             drift_cell = "[dim]—[/dim]"
@@ -375,4 +410,11 @@ def _print_status_table(
     ):
         console.print(
             "[dim][yellow]*[/yellow] smelt result is from a different version[/dim]"
+        )
+
+    if any(e.frontier_class in ("local", "cascading", "excluded") for e in entries):
+        console.print(
+            "[dim]Release markers (bump beyond recommended exists): "
+            "[cyan]°[/cyan] local · [yellow]*[/yellow] cascading · "
+            "[red]×[/red] excluded (above runtime cap)[/dim]"
         )

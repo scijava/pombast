@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Iterator
 
 from pombast.cache._pom_timestamp import PomTimestampCache
 from pombast.core._filter import ComponentFilter
+from pombast.maven._bytecode import BumpClassifier, candidate_floor
 from pombast.status._entry import StatusEntry
 
 if TYPE_CHECKING:
@@ -137,6 +138,58 @@ def _pom_last_modified(
     return ts
 
 
+def _scan_candidate_floor(
+    ctx,
+    group_id: str,
+    artifact_id: str,
+    version: str,
+    current_own: int | None,
+    current_effective: int | None,
+) -> int | None:
+    """Estimate a candidate version's effective bytecode floor.
+
+    Scans the candidate's published JAR for its own bytecode (jgo caches the
+    scan per artifact) and combines it with the current closure's contribution.
+    Best-effort: returns None if the JAR cannot be resolved or scanned.
+    """
+    from jgo.env import jar_java_version
+
+    own_new: int | None = None
+    try:
+        artifact = ctx.project(group_id, artifact_id).at_version(version).artifact()
+        own_new = jar_java_version(artifact, round_to_lts_version=False)
+    except Exception:
+        own_new = None
+    return candidate_floor(own_new, current_own, current_effective)
+
+
+def _classify_bumps(
+    comp: Component,
+    ctx,
+    rules: RulesXML,
+    versions: list[str],
+    classifier: BumpClassifier,
+    smelt_entry: dict,
+    scan_cap: int,
+) -> tuple[str | None, str | None, list]:
+    """Classify a component's accepted bumps; return (recommended, frontier, ladder)."""
+    g, a = comp.group, comp.name
+    candidates = rules.acceptable_above(g, a, versions, comp.version)[:scan_cap]
+    if not candidates:
+        return None, None, []
+    current_own = smelt_entry.get("own_bytecode")
+    current_effective = smelt_entry.get("effective_bytecode")
+    scanned = [
+        (
+            v,
+            _scan_candidate_floor(ctx, g, a, v, current_own, current_effective),
+        )
+        for v in candidates
+    ]
+    result = classifier.classify(comp.ga, scanned)
+    return result.recommended, result.frontier_class, result.ladder
+
+
 def _fetch_one(
     comp: Component,
     ctx,
@@ -149,6 +202,9 @@ def _fetch_one(
     default_workflow: str,
     badges_filter: ComponentFilter | None,
     cuttable_filter: ComponentFilter | None,
+    classifier: BumpClassifier | None,
+    smelt_components: dict[str, dict] | None,
+    scan_cap: int,
 ) -> StatusEntry:
     g, a = comp.group, comp.name
     _log.info("Querying %s:%s", g, a)
@@ -186,6 +242,27 @@ def _fetch_one(
     )
     cuttable = cuttable_filter is None or cuttable_filter.is_included(comp)
 
+    recommended: str | None = None
+    frontier: str | None = None
+    ladder: list = []
+    if classifier is not None and smelt_components is not None:
+        smelt_entry = smelt_components.get(f"{g}:{a}")
+        # Only worth scanning candidate JARs when we know this component's current
+        # floor; without it every candidate classifies "unknown" anyway.
+        if (
+            smelt_entry is not None
+            and smelt_entry.get("effective_bytecode") is not None
+        ):
+            recommended, frontier, ladder = _classify_bumps(
+                comp,
+                ctx,
+                rules,
+                project.metadata.versions,
+                classifier,
+                smelt_entry,
+                scan_cap,
+            )
+
     return StatusEntry(
         component=comp,
         latest_version=latest,
@@ -195,6 +272,9 @@ def _fetch_one(
         project_url=url,
         ci_html=ci,
         cuttable=cuttable,
+        recommended_version=recommended,
+        frontier_class=frontier,
+        version_ladder=ladder,
     )
 
 
@@ -217,6 +297,10 @@ def query_status(
     workers: int = 8,
     max_age: int | None = DEFAULT_MAX_AGE,
     default_workflow: str = "build",
+    smelt_components: dict[str, dict] | None = None,
+    classify: bool = False,
+    runtime_cap: int = 21,
+    scan_cap: int = 16,
 ) -> Iterator[StatusEntry]:
     """Yield a StatusEntry for each (filtered) component in the BOM.
 
@@ -224,10 +308,30 @@ def query_status(
     they are re-fetched from the network.  Pass 0 or None to always refresh.
     POM Last-Modified timestamps are cached permanently (they never change
     once a version is released).
+
+    When ``classify`` is set and ``smelt_components`` (bytecode floors + closures
+    from a prior smelt run) is provided, each accepted bump is classified by its
+    bytecode-floor blast radius. This scans candidate JARs, so it is opt-in.
     """
     proj_ov = project_overrides or {}
     comp_ov = component_overrides or {}
     vetting_ov = vetting_overrides or {}
+
+    classifier: BumpClassifier | None = None
+    if classify and smelt_components:
+        floors = {
+            ga: data["effective_bytecode"]
+            for ga, data in smelt_components.items()
+            if data.get("effective_bytecode") is not None
+        }
+        closures = {
+            ga: data["closure"]
+            for ga, data in smelt_components.items()
+            if data.get("closure")
+        }
+        classifier = BumpClassifier(
+            floors=floors, closures=closures, runtime_cap=runtime_cap
+        )
 
     components = bom_data.components
     if includes or excludes:
@@ -257,6 +361,9 @@ def query_status(
         default_workflow,
         badges_filter,
         cuttable_filter,
+        classifier,
+        smelt_components,
+        scan_cap,
     )
 
     if workers > 1:
