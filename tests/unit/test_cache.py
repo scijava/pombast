@@ -125,6 +125,25 @@ class TestSuccessCache:
         assert cache.is_snapshot(_c("org.scijava", "a", "1.0-SNAPSHOT"))
         assert not cache.is_snapshot(_c("org.scijava", "a", "1.0"))
 
+    def test_matching_closure_returns_entries(self, tmp_path):
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = _c("org.scijava", "a", "1.0")
+        closure = ["org.scijava:dep::jar:1.0", "net.imagej:b::jar:2.0"]
+        cache.record_success(c, closure)
+        pins = _pins(
+            ("org.scijava", "dep", "", "jar", "1.0"),
+            ("net.imagej", "b", "", "jar", "2.0"),
+        )
+        # Stored sorted; returns the matching closure entries, not a bool.
+        assert cache.matching_closure(c, pins) == sorted(closure)
+
+    def test_matching_closure_none_on_miss(self, tmp_path):
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = _c("org.scijava", "a", "1.0")
+        cache.record_success(c, ["org.scijava:dep::jar:1.0"])
+        bumped = _pins(("org.scijava", "dep", "", "jar", "1.1"))
+        assert cache.matching_closure(c, bumped) is None
+
     def test_different_components_isolated(self, tmp_path):
         cache = SuccessCache(cache_dir=tmp_path)
         c1 = _c("org.scijava", "a", "1.0")

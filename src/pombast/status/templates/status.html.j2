@@ -8,6 +8,11 @@
 <script type="text/javascript" src="sorttable.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ansi_up@5/ansi_up.js"></script>
 <style>
+td.bytecode { text-align: center; min-width: 3em; white-space: nowrap; }
+td.bytecode.lifted { cursor: help; }
+td.bytecode .own { color: #888; }
+td.bytecode .arrow { color: #888; padding: 0 .2em; }
+td.bytecode .eff { color: #b58900; font-weight: bold; }
 td.smelt { text-align: center; min-width: 3em; }
 td.smelt.has-log { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 td.smelt.has-log:hover { filter: brightness(1.3); }
@@ -53,6 +58,7 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
 <td{% if row.drift.cls %} class="{{ row.drift.cls }}"{% endif %} sorttable_customkey="{{ row.drift.sort_key }}"{% if row.drift.tooltip %} title="{{ row.drift.tooltip }}"{% endif %}>{{ row.drift.html | safe }}</td>
 <td sorttable_customkey="{{ row.action_key }}">{{ row.action }}</td>
 {{ row.ci_html | safe }}
+<td class="bytecode"></td>
 <td class="smelt"></td>
 </tr>
 {%- endfor %}
@@ -111,6 +117,24 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
     document.getElementById('smelt-log').innerHTML=au.ansi_to_html(this.dataset.log);
     document.getElementById('smelt-modal').classList.add('open');
   }
+  function renderBytecode(tr,c){
+    var oldTd=tr.querySelector('td.bytecode');
+    if(!oldTd)return;
+    var td=oldTd.cloneNode(false);
+    oldTd.parentNode.replaceChild(td,oldTd);
+    if(!c)return;
+    var own=c.own_bytecode,eff=c.effective_bytecode;
+    if(own==null&&eff==null)return;
+    td.setAttribute('sorttable_customkey',eff!=null?eff:own);
+    if(own!=null&&eff!=null&&eff>own){
+      td.innerHTML='<span class="own">'+own+'</span><span class="arrow">&rarr;</span><span class="eff">'+eff+'</span>';
+      td.classList.add('lifted');
+      if(c.drivers&&c.drivers.length)
+        td.title='effective floor lifted to '+eff+' by:\n'+c.drivers.join('\n');
+    }else{
+      td.textContent=''+(eff!=null?eff:own);
+    }
+  }
   function loadSmelt(bust){
     var url='smelt.json'+(bust?'?_='+Date.now():'');
     fetch(url).then(function(r){return r.json();}).then(function(d){
@@ -121,6 +145,7 @@ td.smelt.has-log:hover { filter: brightness(1.3); }
         var td=oldTd.cloneNode(false);
         oldTd.parentNode.replaceChild(td,oldTd);
         var c=comps[tr.dataset.ga];
+        renderBytecode(tr,c);
         if(!c)return;
         var bin=c.binary_test,src=c.source_build;
         var fail=isFail(bin)||isFail(src),pass=isPass(bin)||isPass(src);

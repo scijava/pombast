@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from pombast.status._entry import StatusEntry
 
 
-_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build", "Smelt"]
+_COLUMNS = ["Artifact", "Release", "Drift", "Action", "Build", "Bytecode", "Smelt"]
 
 _env = Environment(
     loader=PackageLoader("pombast.status", "templates"),

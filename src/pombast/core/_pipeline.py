@@ -19,7 +19,11 @@ from pombast.core._component import (
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.maven._builder import ComponentSource, MavenComponentBuilder
-from pombast.maven._java_version import analyze_build_java, write_dependency_tree_log
+from pombast.maven._java_version import (
+    analyze_build_java,
+    floor_from_closure,
+    write_dependency_tree_log,
+)
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
 from pombast.maven._scm import _guess_tag, resolve_scm
 from pombast.util._git import shallow_clone
@@ -203,16 +207,33 @@ class Pipeline:
             # recorded dependency closure for this component still pins to the
             # same versions in the BOM under test — no clone or resolution needed.
             if not builder.success_cache.is_snapshot(component):
-                if builder.success_cache.has_prior_success(component, dep_mgmt):
+                prior_closure = builder.success_cache.matching_closure(
+                    component, dep_mgmt
+                )
+                if prior_closure is not None:
                     _log.info(
                         "%s: skipping — prior success with same pins",
                         component.coordinate,
                     )
+                    # Derive bytecode floors from the cached closure (no resolution)
+                    # so the status report's Bytecode column is populated even for
+                    # components that were not rebuilt this run. Best-effort.
+                    cached_analysis = None
+                    try:
+                        cached_analysis = floor_from_closure(
+                            component, ctx, prior_closure
+                        )
+                    except Exception:
+                        _log.debug(
+                            "%s: could not derive bytecode from cached closure",
+                            component.coordinate,
+                        )
                     report.results.append(
                         BuildResult(
                             component=component,
                             status=BuildStatus.SKIPPED,
                             skipped_reason="prior success",
+                            analysis=cached_analysis,
                         )
                     )
                     continue

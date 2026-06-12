@@ -300,6 +300,27 @@ def _smelt_cells(comp_data: dict | None, bom_version: str) -> tuple[str, str]:
     return _render(comp_data.get("binary_test")), _render(comp_data.get("source_build"))
 
 
+def _bytecode_cell(comp_data: dict | None) -> str:
+    """Return the Bytecode cell Rich markup for a smelt component entry.
+
+    Shows ``own → effective`` when a dependency lifts the floor above the
+    component's own bytecode (the effective value highlighted), a single number
+    when they agree, or ``—`` when no bytecode data is available (e.g. the
+    component was skipped or errored without analysis).
+    """
+    if comp_data is None:
+        return "[dim]—[/dim]"
+    own = comp_data.get("own_bytecode")
+    eff = comp_data.get("effective_bytecode")
+    if own is None and eff is None:
+        return "[dim]—[/dim]"
+    if own is None:
+        return str(eff)
+    if eff is None or eff == own:
+        return str(own)
+    return f"{own} [dim]→[/dim] [yellow]{eff}[/yellow]"
+
+
 def _print_status_table(
     entries: list[StatusEntry],
     smelt: dict[str, dict] | None = None,
@@ -310,6 +331,7 @@ def _print_status_table(
     table.add_column("Drift", justify="right")
     table.add_column("Action", justify="left")
     if smelt is not None:
+        table.add_column("Bytecode", justify="center")
         table.add_column("Binary", justify="center")
         table.add_column("Source", justify="center")
 
@@ -339,8 +361,9 @@ def _print_status_table(
         ]
         if smelt is not None:
             ga = f"{e.component.group}:{e.component.name}"
-            binary_cell, source_cell = _smelt_cells(smelt.get(ga), e.bom_version)
-            row.extend([binary_cell, source_cell])
+            comp_data = smelt.get(ga)
+            binary_cell, source_cell = _smelt_cells(comp_data, e.bom_version)
+            row.extend([_bytecode_cell(comp_data), binary_cell, source_cell])
         table.add_row(*row)
 
     console.print(table)

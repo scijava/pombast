@@ -99,23 +99,40 @@ class SuccessCache:
         Returns:
             True if a stored closure matches the current pins (a cache hit).
         """
+        return self.matching_closure(component, dep_mgmt) is not None
+
+    def matching_closure(
+        self, component: Component, dep_mgmt: dict
+    ) -> list[str] | None:
+        """Return the stored closure that still agrees with the current BOM pins.
+
+        Args:
+            component: The component to check.
+            dep_mgmt: The BOM dependency management under test, keyed by
+                ``(group, artifact, classifier, type)`` → dependency.
+
+        Returns:
+            The matching closure as a list of ``g:a:c:t:v`` entries (a cache hit),
+            or None if no stored closure matches.
+        """
         cache_file = self._cache_path(component)
         if not cache_file.exists():
-            return False
+            return None
 
         try:
             lines = cache_file.read_text().splitlines()
         except OSError:
             _log.warning("Failed to read success cache: %s", cache_file)
-            return False
+            return None
 
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-            if closure_matches_pins(line.split(","), dep_mgmt):
-                return True
-        return False
+            entries = line.split(",")
+            if closure_matches_pins(entries, dep_mgmt):
+                return entries
+        return None
 
     def record_success(self, component: Component, closure: list[str]) -> None:
         """Record a successful build's resolved dependency closure.

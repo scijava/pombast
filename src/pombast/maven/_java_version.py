@@ -16,7 +16,7 @@ from rich.console import Console
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from jgo.maven import DependencyNode
+    from jgo.maven import Artifact, DependencyNode
 
     from pombast.core._component import Component
 
@@ -117,6 +117,79 @@ def analyze_build_java(
     except Exception:
         pass
 
+    _apply_floors(analysis, artifacts, component.coordinate)
+    if analysis.java_version is not None:
+        _log.info(
+            "%s: detected build Java version: %d",
+            component.coordinate,
+            analysis.java_version,
+        )
+
+    return analysis
+
+
+def floor_from_closure(
+    component: Component,
+    ctx: MavenContext,
+    closure: list[str],
+) -> JavaVersionAnalysis:
+    """Compute bytecode floors from an already-resolved dependency closure.
+
+    Unlike :func:`analyze_build_java`, this performs *no* dependency resolution.
+    It takes a closure of ``g:a:c:t:v`` entries (e.g. one recorded in the success
+    cache and revalidated against the current BOM pins) plus the component's own
+    JAR, and derives the floors from jgo's per-artifact bytecode cache.
+
+    This populates bytecode data for components that smelt skipped on a
+    prior-success cache hit, so the status report's Bytecode column is not blank
+    in steady state. Best-effort: artifacts that cannot be resolved or scanned are
+    silently skipped, and the closure is recorded even when no floor is derivable.
+    """
+    analysis = JavaVersionAnalysis(closure=closure)
+
+    artifacts: list[tuple[str, Artifact]] = []
+    for entry in closure:
+        parts = entry.split(":")
+        if len(parts) != 5:
+            continue
+        group, name, classifier, packaging, version = parts
+        try:
+            artifact = (
+                ctx.project(group, name)
+                .at_version(version)
+                .artifact(classifier=classifier, packaging=packaging or "jar")
+            )
+        except Exception:
+            continue
+        artifacts.append((f"{group}:{name}:{version}", artifact))
+
+    try:
+        artifacts.append(
+            (
+                component.coordinate,
+                ctx.project(component.group, component.name)
+                .at_version(component.version)
+                .artifact(),
+            )
+        )
+    except Exception:
+        pass
+
+    _apply_floors(analysis, artifacts, component.coordinate)
+    return analysis
+
+
+def _apply_floors(
+    analysis: JavaVersionAnalysis,
+    artifacts: list[tuple[str, Artifact]],
+    own_coordinate: str,
+) -> None:
+    """Scan each artifact's bytecode and record the floors onto ``analysis``.
+
+    Sets ``own_bytecode`` from the artifact whose coordinate matches
+    ``own_coordinate``, and ``raw_max``/``drivers``/``java_version`` from the
+    maximum bytecode observed across all artifacts.
+    """
     max_version: int | None = None
     own_bytecode: int | None = None
     drivers: list[str] = []
@@ -126,7 +199,7 @@ def analyze_build_java(
         jver = jar_java_version(artifact, round_to_lts_version=False)
         if jver is None:
             continue
-        if coord == component.coordinate:
+        if coord == own_coordinate:
             own_bytecode = jver
         if max_version is None or jver > max_version:
             max_version = jver
@@ -139,13 +212,6 @@ def analyze_build_java(
         analysis.raw_max = max_version
         analysis.drivers = drivers
         analysis.java_version = _round_to_lts(max_version)
-        _log.info(
-            "%s: detected build Java version: %d",
-            component.coordinate,
-            analysis.java_version,
-        )
-
-    return analysis
 
 
 def write_dependency_tree_log(
