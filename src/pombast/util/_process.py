@@ -4,12 +4,34 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 _log = logging.getLogger(__name__)
+
+_mvn_lock = threading.Lock()
+_mvn_cmd: str | None = None
+
+
+def _resolve_mvn() -> str:
+    """Return the path to the ``mvn`` executable, resolving it once.
+
+    Delegates to jgo, which uses a system Maven if one is on the PATH and
+    otherwise downloads and caches a pinned Maven via cjdk. The result is
+    memoized so concurrent smelt builds don't each re-resolve (or re-download).
+    """
+    global _mvn_cmd
+    if _mvn_cmd is None:
+        with _mvn_lock:
+            if _mvn_cmd is None:
+                from jgo.util.mvn import ensure_maven_available
+
+                _mvn_cmd = str(ensure_maven_available())
+                _log.debug("Resolved Maven: %s", _mvn_cmd)
+    return _mvn_cmd
 
 
 def run_maven(
@@ -39,7 +61,7 @@ def run_maven(
     Returns:
         CompletedProcess with stdout/stderr.
     """
-    cmd = ["mvn"]
+    cmd = [_resolve_mvn()]
 
     if color:
         cmd.extend(["--color", "always"])
