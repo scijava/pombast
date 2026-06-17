@@ -24,10 +24,23 @@ _log = logging.getLogger(__name__)
 
 @dataclass
 class ComponentSource:
-    """A checked-out source tree for a component."""
+    """A checked-out source tree for a component.
+
+    ``source_dir`` is the repository checkout root. ``build_dir`` is the module
+    subdirectory whose POM builds this component — they differ only for a
+    multi-module project, where pombast builds in the matching subdirectory
+    rather than from the reactor root. When ``build_dir`` is None it defaults to
+    ``source_dir`` (the single-module case).
+    """
 
     component: Component
     source_dir: Path
+    build_dir: Path | None = None
+
+    @property
+    def work_dir(self) -> Path:
+        """The directory to build, test, and write per-component logs in."""
+        return self.build_dir or self.source_dir
 
 
 class MavenComponentBuilder:
@@ -80,7 +93,7 @@ class MavenComponentBuilder:
             BuildResult with status, log path, and duration.
         """
         component = source.component
-        log_dir = self.output_dir / component.group / component.name
+        log_dir = source.work_dir
 
         merged = {**self.extra_properties, **(extra_properties or {})}
 
@@ -105,7 +118,7 @@ class MavenComponentBuilder:
         try:
             result = run_maven(
                 ["clean", "test"],
-                cwd=source.source_dir,
+                cwd=source.work_dir,
                 java_home=java_home,
                 extra_properties=merged,
                 log_path=source_log_path,
@@ -184,7 +197,7 @@ class MavenComponentBuilder:
             # Step 3: Unpack JAR into target/classes.
             # Wipe the entire target/ dir first — generated sources, test-classes,
             # or other artifacts from a prior tag would otherwise linger.
-            target_dir = source.source_dir / "target"
+            target_dir = source.work_dir / "target"
             if target_dir.exists():
                 shutil.rmtree(target_dir)
             classes_dir = target_dir / "classes"
@@ -197,7 +210,7 @@ class MavenComponentBuilder:
             # -Dmaven.resources.skip=true skips resource processing
             test_result = run_maven(
                 ["test"],
-                cwd=source.source_dir,
+                cwd=source.work_dir,
                 java_home=java_home,
                 extra_properties={
                     **(extra_properties or self.extra_properties),
@@ -279,7 +292,7 @@ class MavenComponentBuilder:
             ]
         lines += ['exec mvn "${MVN_ARGS[@]}" clean test', ""]
 
-        script_path = source.source_dir / "smelt.sh"
+        script_path = source.work_dir / "smelt.sh"
         try:
             script_path.write_text("\n".join(lines))
             script_path.chmod(0o755)

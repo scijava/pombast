@@ -25,6 +25,7 @@ from pombast.maven._java_version import (
     write_dependency_tree_log,
 )
 from pombast.maven._pom_rewriter import patch_pom_urls, rewrite_pom_versions
+from pombast.maven._reactor import locate_module_dir
 from pombast.maven._scm import _guess_tag, resolve_scm
 from pombast.util._git import shallow_clone
 
@@ -245,6 +246,7 @@ class Pipeline:
             # which would otherwise cause pombast to reuse an old clone even after a
             # version bump in the BOM.
             sentinel = f"{component.version}:{tag}"
+            fresh_clone = False
             if tag_file.exists() and tag_file.read_text().strip() == sentinel:
                 _log.info("%s: reusing existing clone at %s", component.coordinate, tag)
             else:
@@ -277,20 +279,52 @@ class Pipeline:
                         )
                     )
                     continue
+                fresh_clone = True
 
-                # Patch and rewrite POM only for a fresh clone; re-applying to an
-                # already-patched POM would corrupt the pinned versions.
-                pom_file = source_dir / "pom.xml"
-                if pom_file.exists():
-                    patch_pom_urls(pom_file)
-                    rewrite_pom_versions(pom_file, dep_mgmt)
+            # Locate the module subdirectory that builds this component. For a
+            # multi-module project (e.g. BoneJ2, scijava/scijava) the BOM manages
+            # each reactor module as its own component; pombast builds in the
+            # matching subdirectory and lets sibling modules resolve from the
+            # repository as ordinary released dependencies. For a single-module
+            # project this is the clone root itself.
+            build_dir = locate_module_dir(source_dir, component)
+            if build_dir is None:
+                _log.warning(
+                    "%s: no module POM matched in checkout — using clone root",
+                    component.coordinate,
+                )
+                build_dir = source_dir
+            elif build_dir != source_dir:
+                _log.info(
+                    "%s: building module subdir %s",
+                    component.coordinate,
+                    build_dir.relative_to(source_dir),
+                )
+
+            if fresh_clone:
+                # Patch and rewrite POMs only for a fresh clone; re-applying to an
+                # already-patched POM would corrupt the pinned versions. Upgrade
+                # http→https across every POM in the checkout so inherited
+                # repository URLs in parent/aggregator POMs don't break the build,
+                # but pin versions only in this module's own POM — its own
+                # dependencyManagement takes precedence over anything inherited,
+                # so that is sufficient even when the module's parent lies outside
+                # the reactor (as with scijava/scijava's pom-scijava-parented
+                # modules).
+                for pom in source_dir.rglob("pom.xml"):
+                    if "target" in pom.relative_to(source_dir).parts:
+                        continue
+                    patch_pom_urls(pom)
+                module_pom = build_dir / "pom.xml"
+                if module_pom.exists():
+                    rewrite_pom_versions(module_pom, dep_mgmt)
 
                 tag_file.write_text(sentinel + "\n")
 
             # Determine the build JDK from the rewritten (BOM-pinned) POM, so jgo
             # resolves exactly the dependency set Maven will build. A per-component
             # override wins; otherwise use the detected version, then the default.
-            analysis = analyze_build_java(component, ctx, source_dir / "pom.xml")
+            analysis = analyze_build_java(component, ctx, build_dir / "pom.xml")
             comp_override = self.config.config.component_overrides.get(component.ga)
             if comp_override and "java-version" in comp_override:
                 java_ver = comp_override["java-version"]
@@ -316,12 +350,14 @@ class Pipeline:
             # Record the resolved dependency tree (with Java-version rationale) next
             # to the build logs, mirroring mega-melt's dependency-tree.log.
             write_dependency_tree_log(
-                analysis, component, source_dir / "dependency-tree.log"
+                analysis, component, build_dir / "dependency-tree.log"
             )
 
             # Build and test. The resolved closure from Java-version analysis
             # doubles as the success-cache key, so no second resolution is needed.
-            source = ComponentSource(component=component, source_dir=source_dir)
+            source = ComponentSource(
+                component=component, source_dir=source_dir, build_dir=build_dir
+            )
             result = builder.build_and_test(
                 source, closure=analysis.closure, extra_properties=comp_properties
             )
