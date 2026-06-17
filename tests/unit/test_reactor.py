@@ -49,8 +49,7 @@ def test_nested_module_matched(tmp_path: Path) -> None:
     )
     component = Component(group="org.bonej", name="bonej-plugins", version="7.2.0")
     assert (
-        locate_module_dir(tmp_path, component)
-        == tmp_path / "Modern" / "wrapperPlugins"
+        locate_module_dir(tmp_path, component) == tmp_path / "Modern" / "wrapperPlugins"
     )
 
 
@@ -75,8 +74,6 @@ def test_target_dirs_skipped(tmp_path: Path) -> None:
     _write(tmp_path / "pom.xml", _pom("org.example", "aggregator"))
     _write(tmp_path / "mod" / "pom.xml", _pom("org.example", "real"))
     # A stray POM under target/ must never win.
-    _write(
-        tmp_path / "mod" / "target" / "pom.xml", _pom("org.example", "real")
-    )
+    _write(tmp_path / "mod" / "target" / "pom.xml", _pom("org.example", "real"))
     component = Component(group="org.example", name="real", version="1.0.0")
     assert locate_module_dir(tmp_path, component) == tmp_path / "mod"
