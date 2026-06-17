@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/scijava/pombast/actions/workflows/build.yml/badge.svg)](https://github.com/scijava/pombast/actions/workflows/build.yml)
+
 # pombast
 
 **Validate that Maven Bill-of-Materials (BOM) components actually work together.**
