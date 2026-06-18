@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 from jgo.cli.rich import format_dependency_tree
 from jgo.env import jar_java_version
 from jgo.maven import POM, MavenContext, Model
-from rich.console import Console
+
+from pombast.util._console import make_console
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -239,7 +240,7 @@ def write_dependency_tree_log(
         tree = format_dependency_tree(analysis.tree, no_wrap=True)
         buf = io.StringIO()
         # Plain text (no ANSI) so the log greps cleanly.
-        Console(file=buf, color_system=None, width=200).print(tree)
+        make_console(file=buf, color_system=None, width=200).print(tree)
 
         header = [
             f"Dependency tree for {component.coordinate}",

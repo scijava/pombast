@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rich_click as click
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -30,11 +29,12 @@ from pombast.status._query import (
     load_timestamps_file,
     query_status,
 )
+from pombast.util._console import make_console
 
 if TYPE_CHECKING:
     from pombast.status._entry import StatusEntry
 
-console = Console()
+console = make_console()
 
 
 @click.command("status")

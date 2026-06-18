@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import rich_click as click
-from rich.console import Console
 from rich.table import Table
 
 from pombast import __version__
@@ -20,8 +19,9 @@ from pombast.config._settings import (
 from pombast.core._component import BuildStatus
 from pombast.core._melt_pipeline import MeltPipeline
 from pombast.core._pipeline import Pipeline
+from pombast.util._console import make_console
 
-console = Console()
+console = make_console()
 
 
 def _parse_defines(specs: tuple[str, ...]) -> dict[str, str]:

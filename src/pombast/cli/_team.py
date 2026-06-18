@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import rich_click as click
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -31,8 +30,9 @@ from pombast.team._github import fetch_repo_stats
 from pombast.team._html import generate_team_html
 from pombast.team._pom_devs import fetch_developers
 from pombast.team._workload import build_workloads
+from pombast.util._console import make_console
 
-console = Console()
+console = make_console()
 
 
 @click.command("team")

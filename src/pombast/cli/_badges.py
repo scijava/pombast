@@ -6,7 +6,6 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import rich_click as click
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -20,8 +19,9 @@ from pombast.config._settings import PombastConfig, parse_repo_spec
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bom import load_bom
 from pombast.status._query import _infer_project_url, _scm_project_url, load_kv_file
+from pombast.util._console import make_console
 
-console = Console()
+console = make_console()
 
 
 @click.command("badges")
