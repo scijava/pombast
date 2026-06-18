@@ -30,9 +30,43 @@ from pombast.maven._scm import _guess_tag, resolve_scm
 from pombast.util._git import shallow_clone
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from pombast.config._settings import PipelineConfig
 
 _log = logging.getLogger(__name__)
+
+
+def remove_test_classes(
+    test_root: Path, fqns: list[str], *, warn_missing: bool = True
+) -> None:
+    """Delete fully-qualified test classes from a ``src/test/java`` root.
+
+    Each fully-qualified name (e.g. ``com.example.FooTest``) maps to the path
+    ``com/example/FooTest.java`` beneath ``test_root``. Fully-qualified names
+    are required: a bare class name could match identically-named classes in
+    unrelated packages, so only the exact path is removed.
+
+    A configured class whose file is absent is logged and skipped rather than
+    failing the build. ``warn_missing`` controls the log level: on a fresh
+    clone the full source tree is present, so a missing file likely means a
+    typo or upstream rename and warrants a warning; on a reused clone the file
+    was probably removed on a prior run, so the absence is logged at debug.
+    """
+    for fqn in fqns:
+        target = test_root.joinpath(*fqn.split(".")).with_suffix(".java")
+        if target.exists():
+            target.unlink()
+            _log.info("remove-tests: removed %s", fqn)
+        elif warn_missing:
+            _log.warning(
+                "remove-tests: %s not found at %s — check the configured "
+                "fully-qualified class name",
+                fqn,
+                target,
+            )
+        else:
+            _log.debug("remove-tests: %s already absent at %s", fqn, target)
 
 
 class _VersionOverride:
@@ -320,6 +354,19 @@ class Pipeline:
                     rewrite_pom_versions(module_pom, dep_mgmt)
 
                 tag_file.write_text(sentinel + "\n")
+
+            # Remove configured test classes from this component's checkout.
+            # Deletion is idempotent, so it runs on every iteration (not just
+            # fresh clones) — that way a newly-added remove-tests entry takes
+            # effect on a reused clone without forcing a re-clone. Missing files
+            # only warn on a fresh clone, when the full source tree is present.
+            remove_fqns = self.config.config.remove_tests.get(component.ga, [])
+            if remove_fqns:
+                remove_test_classes(
+                    build_dir / "src" / "test" / "java",
+                    remove_fqns,
+                    warn_missing=fresh_clone,
+                )
 
             # Determine the build JDK from the rewritten (BOM-pinned) POM, so jgo
             # resolves exactly the dependency set Maven will build. A per-component

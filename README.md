@@ -157,8 +157,12 @@ excludes = ["org.scijava:legacy-*"]
 skip-tests = ["org.example:legacy-lib"]
 
 [remove-tests]
-# Remove specific test classes before building (smelt only).
-"org.example:flaky-component" = ["FlakyIntegrationTest"]
+# Delete specific test classes from a component's checkout before building
+# (smelt only). Keyed by "groupId:artifactId"; each entry is a list of
+# fully-qualified test class names. Fully-qualified names are required so that
+# identically-named classes in different packages are not removed by accident.
+# Each name maps to src/test/java/<package path>/<ClassName>.java.
+"org.example:flaky-component" = ["org.example.flaky.FlakyIntegrationTest"]
 
 [components."org.example:component"]
 # Override Java version for a specific component (smelt only).
