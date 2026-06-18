@@ -210,7 +210,10 @@ def _apply_floors(
     analysis.own_bytecode = own_bytecode
     if max_version is not None:
         analysis.raw_max = max_version
-        analysis.drivers = drivers
+        # Sort so the recorded order is stable across runs (jgo's resolution order
+        # is not), keeping smelt.json diffs minimal. Like ``closure``, duplicate
+        # coordinates (same g:a:v via different classifier/type) are preserved.
+        analysis.drivers = sorted(drivers)
         analysis.java_version = _round_to_lts(max_version)
 
 
