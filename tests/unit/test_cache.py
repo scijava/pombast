@@ -99,11 +99,59 @@ class TestSuccessCache:
             c, _pins(("org.scijava", "dep", "", "jar", "2.0"))
         )
 
-    def test_empty_closure_not_recorded(self, tmp_path):
+    def test_empty_closure_is_recorded_and_hits(self, tmp_path):
+        # A component with no managed dependencies still succeeds; its (deps-only
+        # empty) closure must round-trip so later runs hit the cache instead of
+        # rebuilding every time. The component's own self-entry keeps the stored
+        # key non-empty even here.
         cache = SuccessCache(cache_dir=tmp_path)
         c = _c("org.scijava", "a", "1.0")
         cache.record_success(c, [])
-        assert not cache._cache_path(c).exists()
+        assert cache._cache_path(c).exists()
+        assert cache.has_prior_success(c, _pins())
+        assert cache.matching_closure(c, _pins()) == []
+
+    def test_component_version_bump_invalidates(self, tmp_path):
+        # The component's own version is part of the key: bumping it in the BOM
+        # (even with no dependencies) must force a rebuild, not a stale hit.
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = _c("org.scijava", "a", "1.0")
+        cache.record_success(c, [])
+        # Same version still pinned in the BOM → hit.
+        assert cache.has_prior_success(c, _pins(("org.scijava", "a", "", "jar", "1.0")))
+        # Bumped to a never-tested version → miss.
+        assert not cache.has_prior_success(
+            c, _pins(("org.scijava", "a", "", "jar", "2.0"))
+        )
+
+    def test_self_entry_uses_primary_type(self, tmp_path):
+        # A component whose primary artifact is pinned under a non-jar type
+        # (e.g. an OSGi bundle) must match that key, not assume jar.
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = Component(
+            group="org.scijava", name="a", version="1.0", primary_type="bundle"
+        )
+        cache.record_success(c, [])
+        # Pinned as a bundle at the same version → hit.
+        assert cache.has_prior_success(
+            c, _pins(("org.scijava", "a", "", "bundle", "1.0"))
+        )
+        # Bumped → miss (version genuinely validated, not silently ignored).
+        assert not cache.has_prior_success(
+            c, _pins(("org.scijava", "a", "", "bundle", "2.0"))
+        )
+
+    def test_self_entry_stripped_from_returned_closure(self, tmp_path):
+        # The returned closure is the pure dependency set — the self-entry that
+        # backs the version check is an implementation detail of the key.
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = _c("org.scijava", "a", "1.0")
+        cache.record_success(c, ["org.scijava:dep::jar:1.0"])
+        pins = _pins(
+            ("org.scijava", "a", "", "jar", "1.0"),
+            ("org.scijava", "dep", "", "jar", "1.0"),
+        )
+        assert cache.matching_closure(c, pins) == ["org.scijava:dep::jar:1.0"]
 
     def test_snapshot_closure_not_recorded(self, tmp_path):
         cache = SuccessCache(cache_dir=tmp_path)
@@ -143,6 +191,17 @@ class TestSuccessCache:
         cache.record_success(c, ["org.scijava:dep::jar:1.0"])
         bumped = _pins(("org.scijava", "dep", "", "jar", "1.1"))
         assert cache.matching_closure(c, bumped) is None
+
+    def test_legacy_depsonly_line_ignored(self, tmp_path):
+        # A cache line from before self-versioning (no self-entry) must not hit,
+        # forcing one rebuild so the component re-records with its own version.
+        cache = SuccessCache(cache_dir=tmp_path)
+        c = _c("org.scijava", "a", "1.0")
+        cache_file = cache._cache_path(c)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text("org.scijava:dep::jar:1.0\n")
+        pins = _pins(("org.scijava", "dep", "", "jar", "1.0"))
+        assert not cache.has_prior_success(c, pins)
 
     def test_different_components_isolated(self, tmp_path):
         cache = SuccessCache(cache_dir=tmp_path)

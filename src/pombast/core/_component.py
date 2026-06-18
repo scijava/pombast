@@ -26,6 +26,15 @@ class Component:
     scm_url: str | None = None
     scm_tag: str | None = None
     java_version: int | None = None
+    # The dependency <type> under which the BOM's <dependencyManagement> pins
+    # this component's primary (unclassified) artifact — typically "jar", but
+    # the extractor also admits "bundle" and "maven-plugin". This is NOT a
+    # component-level "packaging": a component deploys several artifacts (main
+    # jar, sources, javadoc, pom), each with its own classifier+type. It names
+    # only the one artifact the BOM pins, sourced from that management entry's
+    # <type> (default jar) — used to revalidate the component's own version
+    # against the BOM in the success cache.
+    primary_type: str = "jar"
 
     @property
     def coordinate(self) -> str:

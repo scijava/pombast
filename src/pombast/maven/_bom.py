@@ -97,6 +97,7 @@ def load_bom(
                 group=group_id,
                 name=artifact_id,
                 version=version,
+                primary_type=type_pkg,
             )
         )
 

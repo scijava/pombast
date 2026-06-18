@@ -88,6 +88,38 @@ class SuccessCache:
     def _cache_path(self, component: Component) -> Path:
         return self.cache_dir / component.group / f"{component.name}.log"
 
+    @staticmethod
+    def _self_entry(component: Component) -> str:
+        """The component's own ``g:a:c:t:v`` entry for the success-cache key.
+
+        The cache file is keyed only by ``group/name`` (version-free), and a
+        component's own version never appears among its *dependencies* — so
+        without this, a bump of the component's own version in the BOM (with
+        unchanged or no dependencies) would still hit the cache and skip a
+        never-tested build. Recording the component itself as a closure entry
+        routes its version through the same pin-revalidation used for
+        dependencies: a self-version drift in the BOM invalidates the success.
+
+        The entry has an empty classifier and uses the component's
+        ``primary_type`` — i.e. the ``<type>`` under which the BOM manages the
+        component's primary artifact (``jar``, ``bundle``, ``maven-plugin``) —
+        so it reconstructs the exact ``dependencyManagement`` key the component
+        was extracted from, rather than assuming jar.
+        """
+        return (
+            f"{component.group}:{component.name}::{component.primary_type}:"
+            f"{component.version}"
+        )
+
+    @staticmethod
+    def _is_self_entry(entry: str, component: Component) -> bool:
+        """True if a closure entry refers to the component's own G:A."""
+        parts = entry.split(":")
+        return len(parts) == 5 and (parts[0], parts[1]) == (
+            component.group,
+            component.name,
+        )
+
     def has_prior_success(self, component: Component, dep_mgmt: dict) -> bool:
         """Check if any prior success still agrees with the current BOM pins.
 
@@ -130,16 +162,27 @@ class SuccessCache:
             if not line:
                 continue
             entries = line.split(",")
+            # A line lacking the component's own self-entry predates
+            # self-versioning; ignore it so the component rebuilds once and
+            # re-records in the current format (its own version then guarded).
+            if not any(self._is_self_entry(e, component) for e in entries):
+                continue
             if closure_matches_pins(entries, dep_mgmt):
-                return entries
+                # Strip the component's own self-entry before returning, so the
+                # caller sees a pure dependency closure (the self-entry exists
+                # only to make the component's own version part of the key).
+                return [e for e in entries if not self._is_self_entry(e, component)]
         return None
 
     def record_success(self, component: Component, closure: list[str]) -> None:
         """Record a successful build's resolved dependency closure.
 
-        The closure is stored as a single sorted, comma-joined line and
-        *prepended* (most recent first), since the latest configuration is the
-        one most likely to recur. No-ops on an empty closure, on an exact
+        The component's own ``g:a:c:t:v`` entry is folded into the recorded
+        closure (see :meth:`_self_entry`) so its version is part of the key;
+        this also means the key is never empty, even for a component with no
+        dependencies. The closure is stored as a single sorted, comma-joined
+        line and *prepended* (most recent first), since the latest
+        configuration is the one most likely to recur. No-ops on an exact
         duplicate of an existing line, or when the closure contains a SNAPSHOT
         (which could never cleanly match the pins on a later run).
 
@@ -147,10 +190,7 @@ class SuccessCache:
             component: The component that built successfully.
             closure: The resolved dependency set as ``g:a:c:t:v`` entries.
         """
-        if not closure:
-            return
-
-        line = ",".join(sorted(closure))
+        line = ",".join(sorted([self._self_entry(component), *closure]))
         if "-SNAPSHOT" in line:
             return
 
