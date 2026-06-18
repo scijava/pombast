@@ -11,7 +11,6 @@ td.nonzero { color: firebrick; font-weight: bold; }
 td.zero { color: #999; }
 td.total-cell { font-weight: bold; border-left: 1px solid gray; }
 th.role-header { text-align: center; }
-{%- if popup_data_json %}
 td.has-popup { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 td.has-popup:hover { filter: brightness(1.3); }
 #team-modal { display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; }
@@ -28,17 +27,15 @@ td.has-popup:hover { filter: brightness(1.3); }
 #team-list li a { color: #0366d6; text-decoration: none; }
 #team-list li a:hover { text-decoration: underline; }
 .popup-repo { color: #888; font-size: .85em; margin-left: .4em; }
-{%- endif %}
 </style>
 </head>
 <body>
 <!-- Generated via https://codepo8.github.io/css-fork-on-github-ribbon/ -->
 <span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
 {{ header_html | safe }}
-{%- if generated %}
-<p style="margin: 0.5em 1em; font-size: 0.85em; color: #555;">Generated: {{ generated }}</p>
-{%- endif %}
+<p id="generated" style="margin: 0.5em 1em; font-size: 0.85em; color: #555;"></p>
 <table class="sortable">
+<thead>
 <tr>
 <th>Team Member</th>
 <th class="role-header" title="Open PRs awaiting review (reviewer role)">PRs</th>
@@ -49,18 +46,8 @@ td.has-popup:hover { filter: brightness(1.3); }
 <th class="role-header" title="Sum of all role columns">Total</th>
 <th class="role-header" title="Number of BOM components this developer is involved with (click for list)">Components</th>
 </tr>
-{%- for row in rows %}
-<tr data-dev="{{ row.dev_id }}">
-<td>{{ row.dev_link | safe }}</td>
-<td class="{{ 'nonzero has-popup' if row.reviewer_prs > 0 else 'zero' }}" data-col="reviewer_prs">{{ row.reviewer_prs }}</td>
-<td class="{{ 'nonzero has-popup' if row.support_issues > 0 else 'zero' }}" data-col="support_issues">{{ row.support_issues }}</td>
-<td class="{{ 'nonzero has-popup' if row.debugger_bugs > 0 else 'zero' }}" data-col="debugger_bugs">{{ row.debugger_bugs }}</td>
-<td class="{{ 'nonzero has-popup' if row.developer_features > 0 else 'zero' }}" data-col="developer_features">{{ row.developer_features }}</td>
-<td class="{{ 'nonzero has-popup' if row.maintainer_releases > 0 else 'zero' }}" data-col="maintainer_releases">{{ row.maintainer_releases }}</td>
-<td class="total-cell">{{ row.total }}</td>
-<td class="{{ 'has-popup' if row.component_count > 0 else '' }}" data-col="components">{{ row.component_count }}</td>
-</tr>
-{%- endfor %}
+</thead>
+<tbody id="team-body"></tbody>
 </table>
 <p style="margin: 1em; font-size: 0.8em; color: #777;">
   <b>Note:</b> GitHub data excludes draft PRs and issues labeled &ldquo;question&rdquo;.
@@ -68,7 +55,6 @@ td.has-popup:hover { filter: brightness(1.3); }
   Click any nonzero cell to see the contributing items; click the Components count to see all associated components.
 </p>
 {{ footer_html | safe }}
-{%- if popup_data_json %}
 <div id="team-modal">
   <div id="team-backdrop"></div>
   <div id="team-box">
@@ -84,7 +70,7 @@ td.has-popup:hover { filter: brightness(1.3); }
   var modal = document.getElementById('team-modal');
   var titleEl = document.getElementById('team-title');
   var list = document.getElementById('team-list');
-  var DATA = {{ popup_data_json | safe }};
+  var tbody = document.getElementById('team-body');
 
   var COL_LABELS = {
     reviewer_prs: 'PRs',
@@ -94,11 +80,20 @@ td.has-popup:hover { filter: brightness(1.3); }
     maintainer_releases: 'Releases',
     components: 'Components'
   };
+  // Role columns rendered in order, with their popup key.
+  var ROLE_COLS = [
+    'reviewer_prs', 'support_issues', 'debugger_bugs',
+    'developer_features', 'maintainer_releases'
+  ];
 
-  function show(devId, col, devName) {
-    var items = DATA[devId] && DATA[devId][col];
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function show(row, col) {
+    var items = row.popups && row.popups[col];
     if (!items || !items.length) return;
-    titleEl.textContent = devName + ' — ' + COL_LABELS[col] + ' (' + items.length + ')';
+    titleEl.textContent = row.dev_name + ' — ' + COL_LABELS[col] + ' (' + items.length + ')';
     list.innerHTML = '';
     items.forEach(function(item) {
       var li = document.createElement('li');
@@ -115,24 +110,67 @@ td.has-popup:hover { filter: brightness(1.3); }
     modal.classList.add('open');
   }
   function hide() { modal.classList.remove('open'); }
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  function popupCell(row, col, count) {
+    var td = document.createElement('td');
+    td.setAttribute('data-col', col);
+    if (count > 0) {
+      td.className = 'nonzero has-popup';
+      td.addEventListener('click', function(){ show(row, col); });
+    } else {
+      td.className = 'zero';
+    }
+    td.textContent = count;
+    return td;
   }
 
-  document.querySelectorAll('td.has-popup').forEach(function(td) {
-    td.addEventListener('click', function() {
-      var tr = td.closest('tr');
-      var devId = tr.dataset.dev;
-      var col = td.dataset.col;
-      var devName = tr.querySelector('td:first-child').textContent.trim();
-      show(devId, col, devName);
+  function buildRow(row) {
+    var tr = document.createElement('tr');
+
+    var nameTd = document.createElement('td');
+    var a = document.createElement('a');
+    a.href = row.dev_url;
+    a.textContent = row.dev_name;
+    nameTd.appendChild(a);
+    tr.appendChild(nameTd);
+
+    ROLE_COLS.forEach(function(col) {
+      tr.appendChild(popupCell(row, col, row[col]));
     });
-  });
+
+    var totalTd = document.createElement('td');
+    totalTd.className = 'total-cell';
+    totalTd.textContent = row.total;
+    tr.appendChild(totalTd);
+
+    var compTd = document.createElement('td');
+    compTd.setAttribute('data-col', 'components');
+    compTd.textContent = row.component_count;
+    if (row.component_count > 0) {
+      compTd.className = 'has-popup';
+      compTd.addEventListener('click', function(){ show(row, 'components'); });
+    }
+    tr.appendChild(compTd);
+
+    return tr;
+  }
+
   document.getElementById('team-close').addEventListener('click', hide);
   document.getElementById('team-backdrop').addEventListener('click', hide);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hide(); });
+
+  fetch('{{ data_url }}').then(function(r){ return r.json(); }).then(function(data){
+    if (data.generated) {
+      document.getElementById('generated').textContent = 'Generated: ' + data.generated;
+    }
+    // Default view: highest total workload first. sorttable.js still re-sorts
+    // on header clicks, reading the tbody rows fresh each time.
+    var rows = (data.rows || []).slice().sort(function(a, b){ return b.total - a.total; });
+    var frag = document.createDocumentFragment();
+    rows.forEach(function(row){ frag.appendChild(buildRow(row)); });
+    tbody.appendChild(frag);
+  });
 })();
 </script>
-{%- endif %}
 </body>
 </html>

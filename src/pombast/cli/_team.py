@@ -27,7 +27,7 @@ from pombast.status._query import (
     query_status,
 )
 from pombast.team._github import fetch_repo_stats
-from pombast.team._html import generate_team_html
+from pombast.team._html import build_team_data, generate_team_html, write_team_json
 from pombast.team._pom_devs import fetch_developers
 from pombast.team._workload import build_workloads
 from pombast.util._console import make_console
@@ -307,12 +307,18 @@ def team_cmd(
         generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         header_html = effective_header.read_text() if effective_header else ""
         footer_html = effective_footer.read_text() if effective_footer else ""
+
+        json_path = effective_html.with_name("team.json")
+        write_team_json(
+            json_path, build_team_data(workload_rows, generated=generated)
+        )
+
         effective_html.write_text(
             generate_team_html(
-                workload_rows,
                 header_html=header_html,
                 footer_html=footer_html,
-                generated=generated,
+                data_url=json_path.name,
             )
         )
         console.print(f"\nHTML team report written to: [cyan]{effective_html}[/cyan]")
+        console.print(f"Team data written to: [cyan]{json_path}[/cyan]")
