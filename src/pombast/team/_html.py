@@ -56,9 +56,7 @@ def _row_data(r: DeveloperRow) -> dict:
             "maintainer_releases": [
                 {"ga": i.ga, "url": i.url} for i in r.maintainer_release_items
             ],
-            "components": [
-                {"ga": ga, "url": url} for ga, url in r.component_url_items
-            ],
+            "components": [{"ga": ga, "url": url} for ga, url in r.component_url_items],
         },
     }
 

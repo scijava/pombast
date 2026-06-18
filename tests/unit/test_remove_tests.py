@@ -47,15 +47,11 @@ def test_missing_class_warns_by_default(tmp_path: Path, caplog) -> None:
     assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
-def test_missing_class_silent_when_warn_missing_false(
-    tmp_path: Path, caplog
-) -> None:
+def test_missing_class_silent_when_warn_missing_false(tmp_path: Path, caplog) -> None:
     test_root = tmp_path / "src" / "test" / "java"
     test_root.mkdir(parents=True)
 
     with caplog.at_level(logging.WARNING):
-        remove_test_classes(
-            test_root, ["com.example.MissingTest"], warn_missing=False
-        )
+        remove_test_classes(test_root, ["com.example.MissingTest"], warn_missing=False)
 
     assert not any(r.levelno == logging.WARNING for r in caplog.records)

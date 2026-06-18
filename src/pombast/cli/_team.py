@@ -309,9 +309,7 @@ def team_cmd(
         footer_html = effective_footer.read_text() if effective_footer else ""
 
         json_path = effective_html.with_name("team.json")
-        write_team_json(
-            json_path, build_team_data(workload_rows, generated=generated)
-        )
+        write_team_json(json_path, build_team_data(workload_rows, generated=generated))
 
         effective_html.write_text(
             generate_team_html(

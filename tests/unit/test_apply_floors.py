@@ -25,7 +25,9 @@ def test_drivers_sorted_regardless_of_artifact_order(monkeypatch):
     artifacts = [(coord, coord) for coord in bytecode]
 
     analysis = JavaVersionAnalysis()
-    _apply_floors(analysis, artifacts, own_coordinate="org.scijava:scijava-common:2.100.1")
+    _apply_floors(
+        analysis, artifacts, own_coordinate="org.scijava:scijava-common:2.100.1"
+    )
 
     assert analysis.drivers == sorted(bytecode)
     assert analysis.raw_max == 52
