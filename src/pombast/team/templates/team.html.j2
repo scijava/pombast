@@ -34,7 +34,7 @@ td.has-popup:hover { filter: brightness(1.3); }
 <span id="forkongithub"><a href="https://github.com/scijava/status.scijava.org">Fix me on GitHub</a></span>
 {{ header_html | safe }}
 <p id="generated" style="margin: 0.5em 1em; font-size: 0.85em; color: #555;"></p>
-<table class="sortable">
+<table id="team-table">
 <thead>
 <tr>
 <th>Team Member</th>
@@ -70,6 +70,7 @@ td.has-popup:hover { filter: brightness(1.3); }
   var modal = document.getElementById('team-modal');
   var titleEl = document.getElementById('team-title');
   var list = document.getElementById('team-list');
+  var table = document.getElementById('team-table');
   var tbody = document.getElementById('team-body');
 
   var COL_LABELS = {
@@ -163,12 +164,18 @@ td.has-popup:hover { filter: brightness(1.3); }
     if (data.generated) {
       document.getElementById('generated').textContent = 'Generated: ' + data.generated;
     }
-    // Default view: highest total workload first. sorttable.js still re-sorts
-    // on header clicks, reading the tbody rows fresh each time.
+    // Default view: highest total workload first.
     var rows = (data.rows || []).slice().sort(function(a, b){ return b.total - a.total; });
     var frag = document.createDocumentFragment();
     rows.forEach(function(row){ frag.appendChild(buildRow(row)); });
     tbody.appendChild(frag);
+    // Initialize sorttable now that the body is populated, so it detects the
+    // numeric columns correctly (it guesses each column's type from the first
+    // body row, which would be missing if it ran on the empty table at load).
+    if (window.sorttable && typeof sorttable.makeSortable === 'function') {
+      table.className = 'sortable';
+      sorttable.makeSortable(table);
+    }
   });
 })();
 </script>
