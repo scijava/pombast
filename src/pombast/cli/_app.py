@@ -75,7 +75,7 @@ def cli() -> None:
     "--build-dir",
     "output_dir",
     type=click.Path(path_type=Path),
-    default="pombast-output",
+    default="target/pombast",
     help="Working directory for builds.",
 )
 @click.option(
@@ -231,7 +231,7 @@ def smelt_cmd(
     "--build-dir",
     "output_dir",
     type=click.Path(path_type=Path),
-    default="pombast-output",
+    default="target/pombast",
     help="Working directory for builds.",
 )
 @click.option(

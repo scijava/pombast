@@ -190,7 +190,7 @@ class TestPipelineConfig:
         assert config.changes == []
         assert config.includes == []
         assert config.excludes == []
-        assert config.output_dir == Path("pombast-output")
+        assert config.output_dir == Path("target") / "pombast"
         assert config.prune is False
         assert config.force is False
         assert config.skip_build is False

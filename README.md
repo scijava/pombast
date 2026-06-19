@@ -118,7 +118,7 @@ Validate the full BOM classpath as a single mega-melt project.
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
 | `--config PATH` | Path to `pombast.toml` config file |
-| `--build-dir PATH` | Working directory for builds (default: `pombast-output`) |
+| `--build-dir PATH` | Working directory for builds (default: `target/pombast`) |
 | `-f, --force` | Wipe build directory if it already exists |
 | `--java-version N` | Java version to use when validating the BOM |
 | `-v, --verbose` | Debug logging |
@@ -134,7 +134,7 @@ Build and test each BOM component against its pinned dependencies.
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
 | `--config PATH` | Path to `pombast.toml` config file |
-| `--build-dir PATH` | Working directory for builds (default: `pombast-output`) |
+| `--build-dir PATH` | Working directory for builds (default: `target/pombast`) |
 | `-o, --output PATH` | Write smelt results as JSON to this file (or `[smelt] output`) |
 | `-p, --prune` | Only build components that depend on changed artifacts |
 | `-f, --force` | Wipe build directory if it already exists |

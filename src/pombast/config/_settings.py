@@ -234,7 +234,7 @@ class PipelineConfig:
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
     repositories: dict[str, str] = field(default_factory=dict)
-    output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
+    output_dir: Path = field(default_factory=lambda: Path("target") / "pombast")
     success_cache_dir: Path | None = None
     prune: bool = False
     force: bool = False
@@ -251,7 +251,7 @@ class MeltConfig:
 
     bom: str
     repositories: dict[str, str] = field(default_factory=dict)
-    output_dir: Path = field(default_factory=lambda: Path("pombast-output"))
+    output_dir: Path = field(default_factory=lambda: Path("target") / "pombast")
     force: bool = False
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
