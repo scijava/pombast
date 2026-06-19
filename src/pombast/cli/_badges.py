@@ -25,7 +25,7 @@ console = make_console()
 
 
 @click.command("badges")
-@click.argument("bom")
+@click.argument("bom", default=".")
 @click.option(
     "-i",
     "--include",
@@ -60,9 +60,8 @@ console = make_console()
     "--output",
     "output_path",
     type=click.Path(path_type=Path),
-    default="badges.json",
-    show_default=True,
-    help="Output JSON file path.",
+    default=None,
+    help="Output JSON file path (default: [badges] output in config, else badges.json).",
 )
 @click.option(
     "--workers",
@@ -110,6 +109,7 @@ def badges_cmd(
     comp_ov = pombast_config.component_overrides
 
     bc = pombast_config.badges
+    effective_output = output_path or bc.output or Path("badges.json")
     cf = ComponentFilter(
         includes=list(include) or bc.includes,
         excludes=list(exclude) or bc.excludes,
@@ -162,7 +162,7 @@ def badges_cmd(
                     badges[slug] = {"title": title, "workflow": resolved_wf}
                 progress.update(task, advance=1, description=slug)
 
-    write_badges_json(badges, output_path)
+    write_badges_json(badges, effective_output)
     console.print(
-        f"[bold]{len(badges)}[/bold] badges written to [cyan]{output_path}[/cyan]."
+        f"[bold]{len(badges)}[/bold] badges written to [cyan]{effective_output}[/cyan]."
     )

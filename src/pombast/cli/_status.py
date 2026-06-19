@@ -38,7 +38,7 @@ console = make_console()
 
 
 @click.command("status")
-@click.argument("bom")
+@click.argument("bom", default=".")
 @click.option(
     "-i",
     "--include",
@@ -123,7 +123,8 @@ console = make_console()
     help="Nexus base URL for artifact hyperlinks in the HTML report (e.g. https://maven.scijava.org).",
 )
 @click.option(
-    "--html",
+    "-o",
+    "--output",
     "html_path",
     type=click.Path(path_type=Path),
     default=None,
@@ -177,7 +178,8 @@ def status_cmd(
     effective_rules = rules or (str(sc.rules) if sc.rules else None)
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
-    effective_html = html_path or sc.html
+    effective_smelt = smelt_path or sc.smelt
+    effective_html = html_path or sc.output
     effective_header = header or sc.header
     effective_footer = footer or sc.footer
     effective_nexus_base = nexus_base or sc.nexus_base
@@ -215,11 +217,11 @@ def status_cmd(
     )
 
     smelt_components: dict[str, dict] | None = None
-    if smelt_path:
-        smelt_components = load_smelt_components(smelt_path)
+    if effective_smelt:
+        smelt_components = load_smelt_components(effective_smelt)
         console.print(
             f"Loaded smelt data: [bold]{len(smelt_components)}[/bold] components "
-            f"([cyan]{smelt_path}[/cyan])"
+            f"([cyan]{effective_smelt}[/cyan])"
         )
 
     cf = ComponentFilter(includes=list(include), excludes=list(exclude))

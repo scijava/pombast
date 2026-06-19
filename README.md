@@ -100,8 +100,13 @@ pombast smelt /path/to/local/bom
 
 ## CLI reference
 
-`BOM` is a Maven `G:A:V` coordinate or a path to a local directory containing
-a `pom.xml` that declares `<dependencyManagement>`.
+`BOM` is a Maven `G:A:V` coordinate or a path to a local directory
+containing a `pom.xml` that declares `<dependencyManagement>`.
+It is optional and defaults to `.` (the current directory).
+
+Every command writes its primary artifact to `-o, --output PATH`. Working build
+directories use `--build-dir`. Output paths can also be set in `pombast.toml`
+(see below), so a typical run needs no flags at all.
 
 ### `pombast melt BOM`
 
@@ -113,8 +118,8 @@ Validate the full BOM classpath as a single mega-melt project.
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
 | `--config PATH` | Path to `pombast.toml` config file |
-| `-o, --output-dir PATH` | Output directory (default: `pombast-output`) |
-| `-f, --force` | Wipe output directory if it already exists |
+| `--build-dir PATH` | Working directory for builds (default: `pombast-output`) |
+| `-f, --force` | Wipe build directory if it already exists |
 | `--java-version N` | Java version to use when validating the BOM |
 | `-v, --verbose` | Debug logging |
 
@@ -129,9 +134,10 @@ Build and test each BOM component against its pinned dependencies.
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
 | `--config PATH` | Path to `pombast.toml` config file |
-| `-o, --output-dir PATH` | Output directory (default: `pombast-output`) |
+| `--build-dir PATH` | Working directory for builds (default: `pombast-output`) |
+| `-o, --output PATH` | Write smelt results as JSON to this file (or `[smelt] output`) |
 | `-p, --prune` | Only build components that depend on changed artifacts |
-| `-f, --force` | Wipe output directory if it already exists |
+| `-f, --force` | Wipe build directory if it already exists |
 | `-s, --skip-build` | Prepare source trees but skip actual builds |
 | `--no-binary-test` | Skip binary compatibility testing |
 | `--default-java N` | Default Java version for components with no declared version |
@@ -155,6 +161,7 @@ properties = {"skipSomePlugin" = "true"}
 includes = ["org.scijava:*"]
 excludes = ["org.scijava:legacy-*"]
 skip-tests = ["org.example:legacy-lib"]
+output = "../status.scijava.org/smelt.json"  # where `smelt` writes its JSON report
 
 [remove-tests]
 # Delete specific test classes from a component's checkout before building
@@ -178,15 +185,32 @@ excludes = ["org.example:problematic-artifact"]
 # Settings for the status command.
 rules = "rules.xml"
 projects = "projects.txt"
-badges = "ci-badges.txt"
 timestamps = "timestamps.txt"
-html = "index.html"
+smelt = "../status.scijava.org/smelt.json"   # smelt.json to overlay (input)
+output = "../status.scijava.org/status.html"
 header = "header.html"
 footer = "footer.html"
+
+[badges]
+# Settings for the badges command.
+output = "../status.scijava.org/badges.json"
+
+[team]
+# Settings for the team command.
+output = "../status.scijava.org/team.html"      # team.json is written alongside it
 ```
 
 If `pombast.toml` exists in the current directory it is loaded automatically.
 Pass `--config PATH` to use a different file.
+
+With output paths configured this way, the full status pipeline needs no flags:
+
+```bash
+pombast smelt -f          # builds and writes smelt.json
+pombast status            # overlays smelt.json, writes status.html
+pombast badges            # writes badges.json
+pombast team              # writes team.html + team.json
+```
 
 ---
 

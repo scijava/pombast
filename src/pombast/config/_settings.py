@@ -53,7 +53,7 @@ class TeamConfig:
 
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
-    html: Path | None = None
+    output: Path | None = None
     header: Path | None = None
     footer: Path | None = None
     lead: list[str] = field(default_factory=lambda: ["lead"])
@@ -75,7 +75,8 @@ class StatusConfig:
     rules: Path | None = None
     projects: Path | None = None
     timestamps: Path | None = None
-    html: Path | None = None
+    smelt: Path | None = None  # smelt.json to overlay compatibility columns
+    output: Path | None = None
     header: Path | None = None
     footer: Path | None = None
     nexus_base: str = ""
@@ -93,6 +94,7 @@ class BadgesConfig:
 
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
+    output: Path | None = None  # where to write badges.json
 
 
 @dataclass
@@ -112,6 +114,7 @@ class PombastConfig:
     filter: FilterConfig = field(default_factory=FilterConfig)
     default_java: int | None = None
     repositories: dict[str, str] = field(default_factory=dict)
+    smelt_output: Path | None = None  # where `smelt` writes its JSON report
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
     build_properties: dict[str, str] = field(default_factory=dict)
@@ -159,8 +162,9 @@ class PombastConfig:
             rules=resolve(status_data, "rules"),
             projects=resolve(status_data, "projects"),
             timestamps=resolve(status_data, "timestamps"),
+            smelt=resolve(status_data, "smelt"),
             default_ci_badge=status_data.get("default-ci-badge", "build"),
-            html=resolve(status_data, "html"),
+            output=resolve(status_data, "output"),
             header=resolve(status_data, "header"),
             footer=resolve(status_data, "footer"),
             nexus_base=status_data.get("nexus-base", ""),
@@ -172,13 +176,14 @@ class PombastConfig:
         badges_config = BadgesConfig(
             includes=badges_data.get("includes", []),
             excludes=badges_data.get("excludes", []),
+            output=resolve(badges_data, "output"),
         )
 
         team_data = data.get("team", {})
         team_config = TeamConfig(
             includes=team_data.get("includes", []),
             excludes=team_data.get("excludes", []),
-            html=resolve(team_data, "html"),
+            output=resolve(team_data, "output"),
             header=resolve(team_data, "header"),
             footer=resolve(team_data, "footer"),
             **{
@@ -192,6 +197,7 @@ class PombastConfig:
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
             repositories=parse_repo_specs(common_data.get("repositories", [])),
+            smelt_output=resolve(smelt_data, "output"),
             skip_tests=smelt_data.get("skip-tests", []),
             remove_tests=data.get("remove-tests", {}),
             build_properties=common_data.get("properties", {}),

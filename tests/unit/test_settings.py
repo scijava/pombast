@@ -94,7 +94,7 @@ class TestStatusConfig:
     def test_defaults(self):
         config = PombastConfig.empty()
         assert config.status.rules is None
-        assert config.status.html is None
+        assert config.status.output is None
 
     def test_load_status_section(self, tmp_path):
         (tmp_path / "rules.xml").write_text("<rules/>")
@@ -108,7 +108,8 @@ class TestStatusConfig:
 rules = "rules.xml"
 projects = "projects.txt"
 timestamps = "timestamps.txt"
-html = "index.html"
+smelt = "smelt.json"
+output = "index.html"
 header = "header.html"
 footer = "footer.html"
 """)
@@ -116,9 +117,37 @@ footer = "footer.html"
         assert config.status.rules == (tmp_path / "rules.xml").resolve()
         assert config.status.projects == (tmp_path / "projects.txt").resolve()
         assert config.status.timestamps == (tmp_path / "timestamps.txt").resolve()
-        assert config.status.html == (tmp_path / "index.html").resolve()
+        assert config.status.smelt == (tmp_path / "smelt.json").resolve()
+        assert config.status.output == (tmp_path / "index.html").resolve()
         assert config.status.header == (tmp_path / "header.html").resolve()
         assert config.status.footer == (tmp_path / "footer.html").resolve()
+
+
+class TestOutputPaths:
+    """Output-artifact path config for smelt, badges, and team."""
+
+    def test_defaults_none(self):
+        config = PombastConfig.empty()
+        assert config.smelt_output is None
+        assert config.badges.output is None
+        assert config.team.output is None
+
+    def test_load_output_paths(self, tmp_path):
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text("""\
+[smelt]
+output = "out/smelt.json"
+
+[badges]
+output = "out/badges.json"
+
+[team]
+output = "out/team.html"
+""")
+        config = PombastConfig.load(toml_path)
+        assert config.smelt_output == (tmp_path / "out/smelt.json").resolve()
+        assert config.badges.output == (tmp_path / "out/badges.json").resolve()
+        assert config.team.output == (tmp_path / "out/team.html").resolve()
 
 
 class TestMegaMeltConfig:

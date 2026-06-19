@@ -36,7 +36,7 @@ console = make_console()
 
 
 @click.command("team")
-@click.argument("bom")
+@click.argument("bom", default=".")
 @click.option(
     "--token",
     envvar="GITHUB_TOKEN",
@@ -90,11 +90,12 @@ console = make_console()
     help="Number of parallel HTTP workers for Maven queries.",
 )
 @click.option(
-    "--html",
+    "-o",
+    "--output",
     "html_path",
     type=click.Path(path_type=Path),
     default=None,
-    help="Write HTML team report to this file.",
+    help="Write HTML team report to this file (team.json is written alongside it).",
 )
 @click.option(
     "--header",
@@ -147,7 +148,7 @@ def team_cmd(
     effective_rules = rules or (str(sc.rules) if sc.rules else None)
     effective_projects = projects or (str(sc.projects) if sc.projects else None)
     effective_timestamps = timestamps or (str(sc.timestamps) if sc.timestamps else None)
-    effective_html = html_path or tc.html
+    effective_html = html_path or tc.output
     effective_header = header or tc.header
     effective_footer = footer or tc.footer
     effective_max_age = 0 if refresh else max_age

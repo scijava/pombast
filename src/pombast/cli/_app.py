@@ -40,7 +40,7 @@ def cli() -> None:
 
 
 @cli.command("smelt")
-@click.argument("bom")
+@click.argument("bom", default=".")
 @click.option(
     "-c",
     "--change",
@@ -72,11 +72,11 @@ def cli() -> None:
     help="Path to pombast.toml configuration file.",
 )
 @click.option(
-    "-o",
-    "--output-dir",
+    "--build-dir",
+    "output_dir",
     type=click.Path(path_type=Path),
     default="pombast-output",
-    help="Output directory.",
+    help="Working directory for builds.",
 )
 @click.option(
     "-p",
@@ -88,7 +88,7 @@ def cli() -> None:
     "-f",
     "--force",
     is_flag=True,
-    help="Wipe output directory if it exists.",
+    help="Wipe build directory if it exists.",
 )
 @click.option(
     "-s",
@@ -108,7 +108,8 @@ def cli() -> None:
     help="Default Java version for components with no declared version (e.g., 11).",
 )
 @click.option(
-    "--json",
+    "-o",
+    "--output",
     "json_path",
     type=click.Path(path_type=Path),
     default=None,
@@ -189,18 +190,19 @@ def smelt_cmd(
     console.print()
     console.print(report.summary())
 
-    if json_path:
+    effective_json = json_path or pombast_config.smelt_output
+    if effective_json:
         from pombast.core._smelt_json import write_json
 
-        write_json(report, json_path)
-        console.print(f"JSON report written to: [cyan]{json_path}[/cyan]")
+        write_json(report, effective_json)
+        console.print(f"JSON report written to: [cyan]{effective_json}[/cyan]")
 
     failures = len(report.failures) + len(report.errors)
     sys.exit(min(failures, 254))
 
 
 @cli.command("melt")
-@click.argument("bom")
+@click.argument("bom", default=".")
 @click.option(
     "-i",
     "--include",
@@ -226,17 +228,17 @@ def smelt_cmd(
     help="Path to pombast.toml configuration file.",
 )
 @click.option(
-    "-o",
-    "--output-dir",
+    "--build-dir",
+    "output_dir",
     type=click.Path(path_type=Path),
     default="pombast-output",
-    help="Output directory.",
+    help="Working directory for builds.",
 )
 @click.option(
     "-f",
     "--force",
     is_flag=True,
-    help="Wipe output directory if it exists.",
+    help="Wipe build directory if it exists.",
 )
 @click.option(
     "--java-version",
