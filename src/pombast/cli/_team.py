@@ -201,10 +201,17 @@ def team_cmd(
             )
     console.print(f"  {len(entries)} components queried.")
 
+    # The team filter limits which components we treat as "ours" for developer
+    # accountability. Import-managed components (e.g. an imported third-party BOM)
+    # are still queried for Maven status above, but we do not scan their POMs for
+    # developer metadata unless they match the team include/exclude rules.
+    team_filter = ComponentFilter(includes=tc.includes, excludes=tc.excludes)
+
     # Phase 2: fetch developer roles from component POMs
     console.print(
         "\n[bold]Phase 2:[/bold] Fetching developer metadata from component POMs…"
     )
+    team_entries = [e for e in entries if team_filter.is_included(e.component)]
     dev_roles: dict[str, list] = {}
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -213,8 +220,8 @@ def team_cmd(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task("POMs…", total=len(entries))
-        for entry in entries:
+        task = progress.add_task("POMs…", total=len(team_entries))
+        for entry in team_entries:
             g, a = entry.component.group, entry.component.name
             v = entry.latest_version or entry.bom_version
             ga = f"{g}:{a}"
@@ -235,14 +242,8 @@ def team_cmd(
         )
         repo_stats: dict = {}
     else:
-        team_cfg = pombast_config.team
-        team_filter = ComponentFilter(
-            includes=team_cfg.includes, excludes=team_cfg.excludes
-        )
         orgs: set[str] = set()
-        for e in entries:
-            if not team_filter.is_included(e.component):
-                continue
+        for e in team_entries:
             url = e.project_url or ""
             parts = url.split("/")
             if "github.com" in url and len(parts) >= 5:
