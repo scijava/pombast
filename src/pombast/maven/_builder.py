@@ -58,12 +58,14 @@ class MavenComponentBuilder:
         success_cache: SuccessCache | None = None,
         extra_properties: dict[str, str] | None = None,
         test_binary: bool = True,
+        settings: Path | None = None,
     ) -> None:
         self.output_dir = output_dir
         self.ctx = ctx
         self.success_cache = success_cache or SuccessCache()
         self.extra_properties = extra_properties or {}
         self.test_binary = test_binary
+        self.settings = settings
 
     def build_and_test(
         self,
@@ -123,6 +125,7 @@ class MavenComponentBuilder:
                 extra_properties=merged,
                 log_path=source_log_path,
                 color=True,
+                settings=self.settings,
             )
             duration = time.monotonic() - start
 
@@ -219,6 +222,7 @@ class MavenComponentBuilder:
                 },
                 log_path=log_path,
                 color=True,
+                settings=self.settings,
             )
 
             if test_result.returncode == 0:
@@ -247,6 +251,8 @@ class MavenComponentBuilder:
         component = source.component
 
         mvn_args = ["--color", "always", "-Denforcer.skip"]
+        if self.settings is not None:
+            mvn_args += ["-s", str(self.settings)]
         for key, value in merged.items():
             mvn_args.append(f"-D{key}={value}")
         args_str = " ".join(shlex.quote(a) for a in mvn_args)

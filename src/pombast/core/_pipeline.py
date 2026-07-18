@@ -151,6 +151,7 @@ class Pipeline:
                 **self.config.maven_properties,
             },
             test_binary=self.config.test_binary,
+            settings=self.config.settings,
         )
 
         # Precompute changed G:A set once for prune filtering.

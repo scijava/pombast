@@ -114,6 +114,7 @@ class PombastConfig:
     filter: FilterConfig = field(default_factory=FilterConfig)
     default_java: int | None = None
     repositories: dict[str, str] = field(default_factory=dict)
+    settings: Path | None = None  # Maven settings.xml passed to every build (-s)
     smelt_output: Path | None = None  # where `smelt` writes its JSON report
     skip_tests: list[str] = field(default_factory=list)
     remove_tests: dict[str, list[str]] = field(default_factory=dict)
@@ -197,6 +198,7 @@ class PombastConfig:
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
             repositories=parse_repo_specs(common_data.get("repositories", [])),
+            settings=resolve(common_data, "settings"),
             smelt_output=resolve(smelt_data, "output"),
             skip_tests=smelt_data.get("skip-tests", []),
             remove_tests=data.get("remove-tests", {}),
@@ -234,6 +236,7 @@ class PipelineConfig:
     includes: list[str] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)
     repositories: dict[str, str] = field(default_factory=dict)
+    settings: Path | None = None
     output_dir: Path = field(default_factory=lambda: Path("target") / "pombast")
     success_cache_dir: Path | None = None
     prune: bool = False
@@ -251,6 +254,7 @@ class MeltConfig:
 
     bom: str
     repositories: dict[str, str] = field(default_factory=dict)
+    settings: Path | None = None
     output_dir: Path = field(default_factory=lambda: Path("target") / "pombast")
     force: bool = False
     includes: list[str] = field(default_factory=list)

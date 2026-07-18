@@ -206,6 +206,7 @@ def run_mega_melt_validation(
     mega_melt_dir: Path,
     java_home: Path | None = None,
     extra_properties: dict[str, str] | None = None,
+    settings: Path | None = None,
 ) -> tuple[bool, Path, Path]:
     """Run mega-melt validation.
 
@@ -226,6 +227,7 @@ def run_mega_melt_validation(
         extra_properties=extra_properties,
         log_path=tree_log,
         skip_enforcer=False,
+        settings=settings,
     )
     if tree_result.returncode != 0:
         _log.warning("Mega-melt dependency:tree FAILED — see %s", tree_log)
@@ -239,6 +241,7 @@ def run_mega_melt_validation(
         extra_properties=extra_properties,
         log_path=build_log,
         skip_enforcer=False,
+        settings=settings,
     )
     success = build_result.returncode == 0
     level = _log.info if success else _log.warning

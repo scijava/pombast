@@ -71,6 +71,7 @@ class MeltPipeline:
                 mega_melt_dir,
                 java_home=java_home,
                 extra_properties=maven_properties or None,
+                settings=self.config.settings,
             )
         except Exception as e:
             _log.error("Mega-melt failed: %s", e)

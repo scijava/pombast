@@ -44,6 +44,7 @@ def run_maven(
     timeout: int | None = None,
     skip_enforcer: bool = True,
     color: bool = False,
+    settings: Path | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a Maven command.
 
@@ -57,11 +58,17 @@ def run_maven(
         skip_enforcer: If True (default), pass -Denforcer.skip to suppress
             enforcer rules. Set False for mega-melt validation where the
             enforcer is the point.
+        settings: If provided, a Maven settings.xml passed via ``-s``. Lets the
+            caller supply mirrors, credentials, or per-repository update
+            policies without touching their user-wide ``~/.m2/settings.xml``.
 
     Returns:
         CompletedProcess with stdout/stderr.
     """
     cmd = [_resolve_mvn()]
+
+    if settings is not None:
+        cmd.extend(["-s", str(settings)])
 
     if color:
         cmd.extend(["--color", "always"])

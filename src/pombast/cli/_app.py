@@ -72,6 +72,14 @@ def cli() -> None:
     help="Path to pombast.toml configuration file.",
 )
 @click.option(
+    "--settings",
+    "settings",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Maven settings.xml passed to every build via -s "
+    "(for mirrors, credentials, or repository update policies).",
+)
+@click.option(
     "--build-dir",
     "output_dir",
     type=click.Path(path_type=Path),
@@ -130,6 +138,7 @@ def smelt_cmd(
     exclude: tuple[str, ...],
     repository: tuple[str, ...],
     config: Path | None,
+    settings: Path | None,
     output_dir: Path,
     prune: bool,
     force: bool,
@@ -168,6 +177,7 @@ def smelt_cmd(
         includes=list(include),
         excludes=list(exclude),
         repositories=effective_repositories,
+        settings=settings or pombast_config.settings,
         output_dir=output_dir,
         prune=prune,
         force=force,
@@ -228,6 +238,14 @@ def smelt_cmd(
     help="Path to pombast.toml configuration file.",
 )
 @click.option(
+    "--settings",
+    "settings",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Maven settings.xml passed to the mega-melt build via -s "
+    "(for mirrors, credentials, or repository update policies).",
+)
+@click.option(
     "--build-dir",
     "output_dir",
     type=click.Path(path_type=Path),
@@ -260,6 +278,7 @@ def melt_cmd(
     exclude: tuple[str, ...],
     repository: tuple[str, ...],
     config: Path | None,
+    settings: Path | None,
     output_dir: Path,
     force: bool,
     java_version: int | None,
@@ -290,6 +309,7 @@ def melt_cmd(
     melt_config = MeltConfig(
         bom=bom,
         repositories=effective_repositories,
+        settings=settings or pombast_config.settings,
         output_dir=output_dir,
         force=force,
         includes=list(include),
