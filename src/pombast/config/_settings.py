@@ -98,6 +98,22 @@ class BadgesConfig:
 
 
 @dataclass
+class JavadocConfig:
+    """Configuration for the javadoc command (``[javadoc]`` section)."""
+
+    includes: list[str] = field(default_factory=list)
+    excludes: list[str] = field(default_factory=list)
+    output: Path | None = None  # javadoc site output directory
+    # Absolute URL prefix for the deployed site (e.g. https://javadoc.scijava.org),
+    # substituted for legacy javadoc host links; empty ⇒ site-relative links.
+    url_prefix: str = ""
+    # Redirect renderer: "rewritemap" (scales, needs server config) or
+    # "redirectmatch" (self-contained .htaccess, does not scale).
+    redirect_format: str = "rewritemap"
+    workers: int = 8
+
+
+@dataclass
 class MegaMeltConfig:
     """Configuration for the mega-melt BOM validation phase."""
 
@@ -124,6 +140,7 @@ class PombastConfig:
     status: StatusConfig = field(default_factory=StatusConfig)
     badges: BadgesConfig = field(default_factory=BadgesConfig)
     team: TeamConfig = field(default_factory=TeamConfig)
+    javadoc: JavadocConfig = field(default_factory=JavadocConfig)
 
     @classmethod
     def load(cls, path: Path) -> PombastConfig:
@@ -194,6 +211,16 @@ class PombastConfig:
             },
         )
 
+        javadoc_data = data.get("javadoc", {})
+        javadoc_config = JavadocConfig(
+            includes=javadoc_data.get("includes", []),
+            excludes=javadoc_data.get("excludes", []),
+            output=resolve(javadoc_data, "output"),
+            url_prefix=javadoc_data.get("url-prefix", ""),
+            redirect_format=javadoc_data.get("redirect-format", "rewritemap"),
+            workers=int(javadoc_data.get("workers", 8)),
+        )
+
         return cls(
             filter=filter_config,
             default_java=int(default_java) if default_java is not None else None,
@@ -208,6 +235,7 @@ class PombastConfig:
             status=status_config,
             badges=badges_config,
             team=team_config,
+            javadoc=javadoc_config,
         )
 
     @classmethod

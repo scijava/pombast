@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/scijava/pombast/actions/workflows/build.yml/badge.svg)](https://github.com/scijava/pombast/actions/workflows/build.yml)
 
-**Validate that Maven Bill-of-Materials (BOM) components actually work together.**
+**A toolkit for working with Maven Bill-of-Materials (BOM) POMs.**
 
 ---
 
@@ -25,7 +25,19 @@
 
 ## What it does
 
-Pombast provides two independent validation modes:
+Pombast is a collection of tools that all operate on the set of components
+managed by a BOM. Its major functions are:
+
+- **`pombast melt`** — holistic classpath check across the whole BOM.
+- **`pombast smelt`** — per-component build and test against pinned versions.
+- **`pombast javadoc`** — generate a browsable javadoc site + unioned index
+  from each component's published `-javadoc` JAR.
+- **`pombast status`** — HTML report of each component's release/vetting status.
+- **`pombast badges`** — fetch CI badge status for each component.
+- **`pombast team`** — developer accountability report across components.
+
+The two validation modes are independent and can be run separately or together
+in CI:
 
 ### `pombast melt` — holistic classpath check
 
@@ -143,6 +155,35 @@ Build and test each BOM component against its pinned dependencies.
 | `--default-java N` | Default Java version for components with no declared version |
 | `-v, --verbose` | Debug logging |
 
+### `pombast javadoc BOM`
+
+Unpack each component's `-javadoc` classifier JAR into `{output}/{g}/{a}/{v}/`
+and assemble a unioned index for the BOM itself at
+`{output}/{bom-g}/{bom-a}/{bom-v}/`. The union is a single, fast `javadoc -link`
+target: its class URLs 301-redirect to the owning component, so the `javadoc`
+tool fetches one small `element-list` instead of one per dependency.
+
+Component javadoc is cached per G:A:V, so composing a multi-version site is a
+matter of invoking the command once per BOM; already-unpacked releases are
+re-used rather than re-extracted.
+
+| Option | Description |
+|---|---|
+| `-i, --include G:A` | Include only matching components (repeatable, wildcards OK) |
+| `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
+| `-r, --repository URL` | Additional Maven repository (repeatable) |
+| `--config PATH` | Path to `pombast.toml` config file |
+| `-o, --output PATH` | Javadoc site output directory (or `[javadoc] output`) |
+| `--url-prefix URL` | Absolute prefix for the deployed site (e.g. `https://javadoc.scijava.org`) |
+| `--redirect-format FMT` | `rewritemap` (scales, needs server config) or `redirectmatch` (self-contained `.htaccess`) |
+| `--workers N` | Parallel download/unpack workers (default: 8) |
+| `-f, --force` | Re-extract components even if already unpacked |
+| `-v, --verbose` | Debug logging |
+
+The canonical redirect artifact is always `redirects.tsv` (server-agnostic
+`union-path <TAB> component-path`); `--redirect-format` only chooses which
+web-server config is rendered alongside it.
+
 ---
 
 ## Configuration file
@@ -198,6 +239,13 @@ output = "../status.scijava.org/badges.json"
 [team]
 # Settings for the team command.
 output = "../status.scijava.org/team.html"      # team.json is written alongside it
+
+[javadoc]
+# Settings for the javadoc command.
+output = "../javadoc.scijava.org"               # javadoc site output directory
+url-prefix = "https://javadoc.scijava.org"      # rewrite legacy javadoc host links to this
+redirect-format = "rewritemap"                  # or "redirectmatch" for a self-contained .htaccess
+includes = ["org.scijava:*"]
 ```
 
 If `pombast.toml` exists in the current directory it is loaded automatically.
