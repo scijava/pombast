@@ -139,22 +139,28 @@ class JavadocPipeline:
         closures: dict[str, Closure] = {}
         unpack_targets: dict[str, Component] = {c.coordinate: c for c in components}
 
-        def _resolve(targets: list[Component]) -> None:
+        def _resolve(targets: list[Component], *, expand: bool) -> None:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futs = {pool.submit(resolve_closure, ctx, c): c for c in targets}
                 for fut in as_completed(futs):
                     comp = futs[fut]
                     closures[comp.coordinate] = fut.result()
-                    for dep in closures[comp.coordinate].deps:
-                        unpack_targets.setdefault(dep.coordinate, dep)
+                    if expand:
+                        for dep in closures[comp.coordinate].deps:
+                            unpack_targets.setdefault(dep.coordinate, dep)
                     if on_resolve is not None:
                         on_resolve(comp)
 
-        _resolve(list(components))
-        # Resolve the dependencies' own closures too, so they can be crosslinked.
-        # (Their closures may name versions the managed set did not; those simply
-        # go unlinked if not unpacked — the index skips absent dirs.)
-        _resolve([c for k, c in unpack_targets.items() if k not in closures])
+        # The managed closures define the unpack/crosslink set. Then resolve the
+        # dependencies' own closures too, so each can be crosslinked against a real
+        # index — but WITHOUT expanding the set, so we never unpack a component we
+        # then fail to resolve (which would crosslink it against an empty closure).
+        # A dependency's closure may name versions we did not unpack; those refs
+        # simply stay unlinked (the index skips absent dirs).
+        _resolve(list(components), expand=True)
+        _resolve(
+            [c for k, c in unpack_targets.items() if k not in closures], expand=False
+        )
 
         # Phase 1: download + unpack + adjust every target (parallel, cached).
         with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -177,7 +183,9 @@ class JavadocPipeline:
 
         # Phase 2: crosslink every unpacked component against its own closure.
         indexer = ClassIndexer(site)
-        jdk_resolver = JdkModuleResolver(cfg.url_prefix)
+        jdk_resolver = JdkModuleResolver(
+            cfg.url_prefix, cfg.jdk_api_url_template, cfg.jdk_api_base_urls
+        )
         empty_closure = Closure()
         with ThreadPoolExecutor(max_workers=workers) as pool:
             crosslink_futures = [

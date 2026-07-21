@@ -238,7 +238,7 @@ class TestParseModuleList:
 
 
 class TestJdkModuleResolver:
-    def test_fetches_and_caches(self):
+    def test_fetches_from_proxy_and_caches(self):
         calls: list[str] = []
 
         def opener(url: str) -> str:
@@ -246,32 +246,49 @@ class TestJdkModuleResolver:
             return "module:java.base\njava.lang\n"
 
         r = JdkModuleResolver(url_prefix="https://javadoc.scijava.org", opener=opener)
-        assert r.modules("/Java21/") == {"java.lang": "java.base"}
-        assert r.modules("/Java21/") == {"java.lang": "java.base"}  # cached
+        assert r.modules(21) == {"java.lang": "java.base"}
+        assert r.modules(21) == {"java.lang": "java.base"}  # cached
         assert calls == ["https://javadoc.scijava.org/Java21/element-list"]
 
-    def test_falls_back_to_package_list(self):
-        def opener(url: str) -> str:
-            if url.endswith("element-list"):
-                raise OSError("404")
-            return "java.applet\njava.awt\n"
+    def test_versions_below_9_have_no_modules_without_fetching(self):
+        def opener(url: str) -> str:  # pragma: no cover - must not be called
+            raise AssertionError("no fetch below Java 9")
 
         r = JdkModuleResolver(opener=opener)
-        assert r.modules("https://docs.oracle.com/javase/8/docs/api/") == {}
+        assert r.modules(8) == {}
+        assert r.modules(None) == {}
 
-    def test_site_relative_base_without_prefix_is_module_less(self):
-        def opener(url: str) -> str:  # pragma: no cover - must not be called
-            raise AssertionError("should not fetch without a host")
+    def test_site_relative_falls_back_to_oracle(self):
+        # Empty url_prefix ⇒ no host for the /Java21/ base, so the module map
+        # comes from the canonical Oracle docs instead of degrading to empty.
+        def opener(url: str) -> str:
+            if url == "https://docs.oracle.com/en/java/javase/21/docs/api/element-list":
+                return "module:java.base\njava.lang\n"
+            raise OSError("no host")
 
         r = JdkModuleResolver(url_prefix="", opener=opener)
-        assert r.modules("/Java21/") == {}
+        assert r.modules(21) == {"java.lang": "java.base"}
 
-    def test_fetch_failure_degrades_to_empty(self):
+    def test_explicit_base_url_wins(self):
+        seen: list[str] = []
+
+        def opener(url: str) -> str:
+            seen.append(url)
+            return "module:java.base\njava.lang\n"
+
+        r = JdkModuleResolver(
+            base_urls={"j17": "https://docs.oracle.com/en/java/javase/17/docs/api/"},
+            opener=opener,
+        )
+        assert r.modules(17) == {"java.lang": "java.base"}
+        assert seen[0].startswith("https://docs.oracle.com/en/java/javase/17/")
+
+    def test_all_sources_fail_degrades_to_empty(self):
         def opener(url: str) -> str:
             raise OSError("network down")
 
         r = JdkModuleResolver(opener=opener)
-        assert r.modules("https://docs.oracle.com/en/java/javase/21/docs/api/") == {}
+        assert r.modules(21) == {}
 
 
 class TestPlainTextFqcn:

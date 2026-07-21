@@ -181,49 +181,80 @@ def _default_opener(url: str) -> str:
 
 
 class JdkModuleResolver:
-    """Resolves and caches JDK package→module maps from a resolved API base.
+    """Resolves and caches JDK package→module maps, keyed by Java version.
 
     Java 9+ javadoc URLs are module-qualified (``…/{module}/{pkg}/Class.html``).
-    The authoritative, version-exact package→module map for a base is its own
-    ``element-list`` — the same file ``javadoc -link`` consumes — so we fetch it
-    rather than bundling a map that would drift across releases. A base that
-    publishes only a flat ``package-list`` (Java 8) resolves to an empty map, i.e.
-    module-less links. Failures degrade gracefully to module-less.
+    The package→module map is a property of the Java *version*, not of any one
+    deployment — ``java.lang`` is in ``java.base`` in every Java 21 build — so it
+    is fetched from an ``element-list`` (the same file ``javadoc -link`` consumes),
+    NOT bundled (which would drift). Sources are tried in order: the configured
+    per-version base, the emit base if it has a host (``url_prefix`` + template),
+    then the canonical Oracle docs for that version — so module qualification works
+    even when links are emitted site-relative (empty ``url_prefix``). Versions < 9
+    have no modules; any fetch failure degrades gracefully to module-less.
     """
 
-    def __init__(self, url_prefix: str = "", *, opener: UrlOpener = _default_opener):
+    def __init__(
+        self,
+        url_prefix: str = "",
+        template: str = "/Java{java}/",
+        base_urls: dict[str, str] | None = None,
+        *,
+        opener: UrlOpener = _default_opener,
+    ):
         self._url_prefix = url_prefix
+        self._template = template
+        self._base_urls = base_urls or {}
         self._opener = opener
-        self._cache: dict[str, dict[str, str]] = {}
+        self._cache: dict[int, dict[str, str]] = {}
         self._lock = threading.Lock()
 
-    def modules(self, base: str) -> dict[str, str]:
-        """Return ``{package: module}`` for the JDK API rooted at ``base``."""
+    def modules(self, version: int | None) -> dict[str, str]:
+        """Return ``{package: module}`` for the JDK at ``version`` (``{}`` if < 9)."""
+        if version is None or version < 9:
+            return {}
         with self._lock:
-            cached = self._cache.get(base)
+            cached = self._cache.get(version)
         if cached is not None:
             return cached
-        result = self._fetch(base)
+        result: dict[str, str] = {}
+        for base in self._fetch_bases(version):
+            mapping = self._fetch_one(base)
+            if mapping:  # first source that actually yields modules wins
+                result = mapping
+                break
+        if not result:
+            _log.warning("Could not resolve JDK module map for Java %d", version)
         with self._lock:
-            self._cache[base] = result
+            self._cache[version] = result
         return result
 
-    def _fetch(self, base: str) -> dict[str, str]:
-        fetch_base = base
-        if base.startswith("/"):
-            if not self._url_prefix:
-                # A site-relative base has no host to fetch from; without one we
-                # cannot know modules, so fall back to module-less links.
-                return {}
-            fetch_base = f"{self._url_prefix.rstrip('/')}{base}"
-        fetch_base = fetch_base.rstrip("/")
+    def _fetch_bases(self, version: int) -> list[str]:
+        """Candidate API bases to fetch the module map from, best first."""
+        bases: list[str] = []
+        key = f"j{version}"
+        if key in self._base_urls:
+            bases.append(self._base_urls[key])
+        emit = resolve_jdk_base(version, self._template, {})
+        if emit:
+            if emit.startswith("/"):
+                if self._url_prefix:
+                    bases.append(f"{self._url_prefix.rstrip('/')}{emit}")
+            else:
+                bases.append(emit)
+        # Canonical Oracle docs — the module map is universal per version, so this
+        # backstops site-relative deployments with no fetchable host of their own.
+        bases.append(f"https://docs.oracle.com/en/java/javase/{version}/docs/api/")
+        return bases
+
+    def _fetch_one(self, base: str) -> dict[str, str]:
+        base = base.rstrip("/")
         for name in ("element-list", "package-list"):
             try:
-                text = self._opener(f"{fetch_base}/{name}")
-            except Exception:  # noqa: BLE001 — any fetch failure ⇒ module-less
+                text = self._opener(f"{base}/{name}")
+            except Exception:  # noqa: BLE001 — any fetch failure ⇒ try next source
                 continue
             return _parse_module_list(text)
-        _log.warning("No element-list/package-list for JDK base %s", base)
         return {}
 
 
@@ -546,7 +577,7 @@ def crosslink_component(
     index = indexer.build(deps)
     jdk_base = resolve_jdk_base(java_version, jdk_template, base_urls)
     jdk_modules = (
-        jdk_resolver.modules(jdk_base)
+        jdk_resolver.modules(java_version)
         if jdk_resolver is not None and jdk_base is not None
         else {}
     )
