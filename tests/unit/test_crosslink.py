@@ -356,3 +356,43 @@ class TestClassIndexer:
         self._make_javadoc(tmp_path, other, ["org/scijava/Context.html"])
         index = ClassIndexer(tmp_path).build([_SCIJAVA, other])
         assert index["org.scijava.Context"][0] == _SCIJAVA
+
+    def test_modular_javadoc_strips_module_from_fqcn(self, tmp_path):
+        # ImageJ's module is "ij", so Java 9+ javadoc doubles the leading segment.
+        ij = Component(group="net.imagej", name="ij", version="1.53r")
+        cdir = tmp_path / ij.group / ij.name / ij.version
+        (cdir / "ij" / "ij" / "plugin").mkdir(parents=True)
+        (cdir / "ij" / "ij" / "plugin" / "PlugIn.html").write_text("")
+        (cdir / "ij" / "ij" / "ImagePlus.html").write_text("")
+        (cdir / "element-list").write_text("module:ij\nij\nij.plugin\n")
+        index = ClassIndexer(tmp_path).build([ij])
+        # Key is the real FQCN; value is the actual (module-doubled) on-disk path.
+        assert index["ij.plugin.PlugIn"] == (ij, "ij/ij/plugin/PlugIn.html")
+        assert index["ij.ImagePlus"] == (ij, "ij/ij/ImagePlus.html")
+        assert "ij.ij.plugin.PlugIn" not in index
+
+
+class TestModularDepLinks:
+    _IJ = Component(group="net.imagej", name="ij", version="1.53r")
+    # Modular index: real FQCN -> module-doubled on-disk path.
+    _INDEX: ClassIndex = {"ij.plugin.PlugIn": (_IJ, "ij/ij/plugin/PlugIn.html")}
+
+    def test_doubled_legacy_href_resolves_via_suffix_search(self):
+        html = '<a href="/ImageJ1/ij/ij/plugin/PlugIn.html">PlugIn</a>'
+        out = _crosslink(html, self._INDEX)
+        assert 'href="/net.imagej/ij/1.53r/ij/ij/plugin/PlugIn.html"' in out
+
+    def test_nonmodular_legacy_href_maps_to_modular_ondisk_path(self):
+        # Source link had no module doubling, but the resolved version is modular;
+        # the link must land on the real (doubled) on-disk file.
+        html = '<a href="/ImageJ1/ij/plugin/PlugIn.html">PlugIn</a>'
+        out = _crosslink(html, self._INDEX)
+        assert 'href="/net.imagej/ij/1.53r/ij/ij/plugin/PlugIn.html"' in out
+
+    def test_plaintext_real_fqcn_is_linked(self):
+        html = "<code>(ij.plugin.PlugIn p)</code>"
+        out = _crosslink(html, self._INDEX)
+        assert (
+            '<a href="/net.imagej/ij/1.53r/ij/ij/plugin/PlugIn.html">'
+            "ij.plugin.PlugIn</a>" in out
+        )

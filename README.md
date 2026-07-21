@@ -174,9 +174,19 @@ dependencies — the versions jgo actually resolves from the component's own POM
 SciJava-built javadoc baked in (flat `/SciJava/…`, `/ImgLib2/…` prefixes) and
 adds links to classes that were never linked at all (their fully-qualified name
 was embedded as plain text). To make those targets exist, each component's full
-resolved dependency closure is unpacked into the tree too (cached per G:A:V).
-Crosslinking is itself cached via a per-component marker and re-runs under
+resolved dependency closure is unpacked into the tree too (cached per G:A:V), and
+**every unpacked component is itself crosslinked** — not just the BOM's managed
+ones — so links stay reproducible even when a reader browses into a dependency's
+pages. Crosslinking is cached via a per-component marker and re-runs under
 `--force`.
+
+Link targets point at each class's *real* on-disk location in the resolved
+version. That matters for **modular (Java 9+) javadoc**, which nests classes under
+their JPMS module (e.g. ImageJ's module `ij` puts `ij.plugin.PlugIn` at
+`ij/ij/plugin/PlugIn.html`): pombast reads each unpacked dependency's own
+`element-list` to key classes by their true FQCN while linking to the actual
+(possibly module-doubled) path, so references resolve whether the resolved version
+was built modular or not.
 
 `java.*` / `javax.*` (JDK) references have no Maven artifact to point at. A link
 is recognized as a JDK link by the *shape* of its target (its class is a JDK

@@ -18,7 +18,11 @@ anchors are never corrupted:
 
 * **Legacy flat-prefix hrefs** — ``href="/SciJava/org/scijava/Context.html"`` →
   ``/{g}/{a}/{v}/org/scijava/Context.html`` for the dependency that actually owns
-  ``org.scijava.Context``.
+  ``org.scijava.Context``. The owning class is found by suffix search (the legacy
+  deployment prefix may be one segment or several, and a modular source doubles
+  the leading segment, e.g. ImageJ's ``ij/ij/plugin/…``), and the link points at
+  the class's *real* on-disk location in the resolved version — which is itself
+  module-qualified iff that version's javadoc is modular (see :class:`ClassIndexer`).
 * **Unlinked plain-text FQCNs** — ``org.tensorflow.Tensor`` appearing as signature
   text is wrapped in an anchor pointing at the owning dependency.
 * **JDK links** — a link is a JDK link when its *class* is a JDK class
@@ -236,14 +240,24 @@ class ClassIndexer:
         self._lock = threading.Lock()
 
     def _pages(self, comp: Component) -> dict[str, str]:
-        """Return ``{fqcn: relpath}`` for one dependency's unpacked javadoc."""
+        """Return ``{fqcn: relpath}`` for one dependency's unpacked javadoc.
+
+        ``fqcn`` is the *real* class name; ``relpath`` is where the page actually
+        lives on disk — which for modular (Java 9+) javadoc is under a leading
+        ``{module}/`` segment (e.g. ``ij.plugin.PlugIn`` → ``ij/ij/plugin/PlugIn.html``
+        because ImageJ's module is named ``ij``). Keying by real FQCN but linking
+        to the on-disk path makes references resolve regardless of whether the
+        resolved version's javadoc was built modular or not.
+        """
         cdir = component_javadoc_dir(self._site_dir, comp)
         key = str(cdir)
         with self._lock:
             cached = self._cache.get(key)
         if cached is not None:
             return cached
-        pages = dict(_iter_class_pages(cdir)) if cdir.is_dir() else {}
+        pages = (
+            dict(_iter_class_pages(cdir, _module_names(cdir))) if cdir.is_dir() else {}
+        )
         with self._lock:
             self._cache[key] = pages
         return pages
@@ -262,11 +276,27 @@ class ClassIndexer:
         return index
 
 
-def _iter_class_pages(cdir: Path):
+def _module_names(cdir: Path) -> set[str]:
+    """Return the set of JPMS module names for an unpacked javadoc dir.
+
+    Read from the dir's own ``element-list`` (modular javadoc) — the same file a
+    ``-link`` target publishes. A flat ``package-list`` (non-modular) yields none.
+    """
+    for name in ("element-list", "package-list"):
+        path = cdir / name
+        if path.exists():
+            text = path.read_text(encoding="utf-8", errors="replace")
+            return set(_parse_module_list(text).values())
+    return set()
+
+
+def _iter_class_pages(cdir: Path, modules: set[str]):
     """Yield ``(fqcn, relpath)`` for each class page under a javadoc dir.
 
     Skips package/overview/index/use scaffolding — only true per-class pages
-    (including nested ``Outer.Inner.html``) contribute linkable targets.
+    (including nested ``Outer.Inner.html``) contribute linkable targets. For
+    modular javadoc, the leading ``{module}/`` segment of the on-disk path is
+    stripped when forming the FQCN (but kept in ``relpath``, the link target).
     """
     for html in cdir.rglob("*.html"):
         if not html.is_file():
@@ -274,12 +304,13 @@ def _iter_class_pages(cdir: Path):
         name = html.name
         if name in TOPLEVEL_HTML_DOCS or name.startswith("package-"):
             continue
-        parts = html.relative_to(cdir).parts
-        if "class-use" in parts or "doc-files" in parts:
-            continue
         rel = html.relative_to(cdir).as_posix()
-        fqcn = rel[:-5].replace("/", ".")  # strip ".html"
-        yield fqcn, rel
+        if "class-use/" in rel or "doc-files/" in rel:
+            continue
+        stem = rel[:-5].split("/")  # drop ".html", split path
+        if modules and stem[0] in modules:
+            stem = stem[1:]  # strip the module segment from the FQCN only
+        yield ".".join(stem), rel
 
 
 def _jdk_class_path(href: str) -> tuple[str, str] | None:
@@ -324,6 +355,23 @@ def _package_of(class_path: str) -> str:
     return "/".join(class_path.split("/")[:-1]).replace("/", ".")
 
 
+def _dep_owner(class_path: str, index: ClassIndex) -> tuple[Component, str] | None:
+    """Find the dependency owning the class named by ``class_path``, if any.
+
+    The baked link's *prefix* is unknowable in general — a legacy deployment path
+    may be one segment (``/SciJava/``) or several, and a modular source may double
+    the leading segment (``ij/ij/plugin/…``). So rather than assume a fixed prefix
+    length, try each suffix of the path, longest first, and take the first whose
+    dotted form is a real class in the index (which is keyed by *real* FQCN).
+    """
+    segs = class_path[:-5].split("/")  # drop ".html"
+    for i in range(len(segs) - 1):  # require ≥1 package segment
+        owner = index.get(".".join(segs[i:]))
+        if owner is not None:
+            return owner
+    return None
+
+
 def _rewrite_href(
     href: str,
     index: ClassIndex,
@@ -347,8 +395,8 @@ def _rewrite_href(
     if rel.startswith("/"):
         m = _ABS_CLASS_RE.match(rel)
         if m:
-            class_path, query = m.group(2), m.group(3) or ""
-            owner = index.get(class_path[:-5].replace("/", "."))
+            query = m.group(3) or ""
+            owner = _dep_owner(m.group(2), index)
             if owner is not None:
                 dep, relpath = owner
                 return f"{url_prefix}/{dep.group}/{dep.name}/{dep.version}/{relpath}{query}"
