@@ -167,6 +167,27 @@ Component javadoc is cached per G:A:V, so composing a multi-version site is a
 matter of invoking the command once per BOM; already-unpacked releases are
 re-used rather than re-extracted.
 
+**Crosslinking.** After unpacking, each component's HTML is rewritten so class
+references resolve to the *exact versioned* javadoc of that component's
+dependencies — the versions jgo actually resolves from the component's own POM,
+**not** the BOM's managed versions. This repairs the irreproducible links older
+SciJava-built javadoc baked in (flat `/SciJava/…`, `/ImgLib2/…` prefixes) and
+adds links to classes that were never linked at all (their fully-qualified name
+was embedded as plain text). To make those targets exist, each component's full
+resolved dependency closure is unpacked into the tree too (cached per G:A:V).
+Crosslinking is itself cached via a per-component marker and re-runs under
+`--force`.
+
+`java.*` / `javax.*` (JDK) references have no Maven artifact to point at. A link
+is recognized as a JDK link by the *shape* of its target (its class is a JDK
+class) rather than by matching known hosts, so every baked-in form — absolute
+Oracle/sun URLs across eras, modular `.../java.base/…` paths, the `/Java{N}/`
+proxy — is normalized the same way onto a configured API base at the component's
+**true** target Java version (read from its resolved `maven.compiler.release` /
+`scijava.jvm.version`), not the often-stale version baked into the original link.
+See `jdk-api-url-template` / `jdk-api-base-urls` below. The default template
+`/Java{java}/` reproduces SciJava's proxied prefixes.
+
 | Option | Description |
 |---|---|
 | `-i, --include G:A` | Include only matching components (repeatable, wildcards OK) |
@@ -176,8 +197,8 @@ re-used rather than re-extracted.
 | `-o, --output PATH` | Javadoc site output directory (or `[javadoc] output`) |
 | `--url-prefix URL` | Absolute prefix for the deployed site (e.g. `https://javadoc.scijava.org`) |
 | `--redirect-format FMT` | `rewritemap` (scales, needs server config) or `redirectmatch` (self-contained `.htaccess`) |
-| `--workers N` | Parallel download/unpack workers (default: 8) |
-| `-f, --force` | Re-extract components even if already unpacked |
+| `--workers N` | Parallel resolve/unpack/crosslink workers (default: 8) |
+| `-f, --force` | Re-extract and re-crosslink components even if already processed |
 | `-v, --verbose` | Debug logging |
 
 The canonical redirect artifact is always `redirects.tsv` (server-agnostic
@@ -246,6 +267,14 @@ output = "../javadoc.scijava.org"               # javadoc site output directory
 url-prefix = "https://javadoc.scijava.org"      # rewrite legacy javadoc host links to this
 redirect-format = "rewritemap"                  # or "redirectmatch" for a self-contained .htaccess
 includes = ["org.scijava:*"]
+# JDK (java.*) link handling. The template is formatted with {java} (the Java
+# version); the default below reproduces SciJava's proxied /Java8/ prefixes.
+jdk-api-url-template = "/Java{java}/"
+# Explicit per-version bases override the template (Oracle changes its URL
+# structure between releases). Keyed "j8", "j21", …:
+[javadoc.jdk-api-base-urls]
+j8 = "https://docs.oracle.com/javase/8/docs/api/"
+j21 = "https://docs.oracle.com/en/java/javase/21/docs/api/"
 ```
 
 If `pombast.toml` exists in the current directory it is loaded automatically.

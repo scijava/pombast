@@ -132,6 +132,8 @@ def javadoc_cmd(
         redirect_format=redirect_format or jc.redirect_format,
         workers=workers if workers is not None else jc.workers,
         force=force,
+        jdk_api_url_template=jc.jdk_api_url_template,
+        jdk_api_base_urls=jc.jdk_api_base_urls,
     )
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
@@ -139,8 +141,8 @@ def javadoc_cmd(
 
     pipeline = JavadocPipeline(run_config)
 
-    # We don't know the component count until load_bom runs inside the pipeline,
-    # so drive an indeterminate bar and let each unpack advance it.
+    # We don't know component/closure counts until load_bom runs inside the
+    # pipeline, so drive indeterminate bars and let each phase advance them.
     with Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -148,14 +150,28 @@ def javadoc_cmd(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task("Unpacking…", total=None)
+        resolve_task = progress.add_task("Resolving…", total=None)
+        unpack_task = progress.add_task("Unpacking…", total=None)
+        crosslink_task = progress.add_task("Crosslinking…", total=None)
+
+        def _on_resolve(comp) -> None:
+            progress.update(resolve_task, advance=1, description=comp.coordinate)
 
         def _on_unpack(result) -> None:
             progress.update(
-                task, advance=1, description=result.component.coordinate
+                unpack_task, advance=1, description=result.component.coordinate
             )
 
-        report = pipeline.run(progress=_on_unpack)
+        def _on_crosslink(result) -> None:
+            progress.update(
+                crosslink_task, advance=1, description=result.component.coordinate
+            )
+
+        report = pipeline.run(
+            on_resolve=_on_resolve,
+            on_unpack=_on_unpack,
+            on_crosslink=_on_crosslink,
+        )
 
     console.print()
     console.print(
@@ -163,6 +179,10 @@ def javadoc_cmd(
         f"Cached: [cyan]{len(report.cached)}[/cyan]  "
         f"Missing: [yellow]{len(report.missing)}[/yellow]  "
         f"Errors: [red]{len(report.errors)}[/red]"
+    )
+    console.print(
+        f"Crosslinked: [green]{len(report.crosslinked)}[/green] components, "
+        f"[green]{report.links_rewritten}[/green] links rewritten."
     )
     if report.union is not None:
         u = report.union

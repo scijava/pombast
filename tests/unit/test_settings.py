@@ -183,6 +183,35 @@ excludes = ["org.foo:bad"]
         assert config.mega_melt.template is None
 
 
+class TestJavadocConfig:
+    def test_defaults(self):
+        jc = PombastConfig.empty().javadoc
+        assert jc.url_prefix == ""
+        assert jc.redirect_format == "rewritemap"
+        assert jc.workers == 8
+        assert jc.jdk_api_url_template == "/Java{java}/"
+        assert jc.jdk_api_base_urls == {}
+
+    def test_load_jdk_settings(self, tmp_path):
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text("""\
+[javadoc]
+url-prefix = "https://javadoc.scijava.org"
+jdk-api-url-template = "/JDK{java}/"
+
+[javadoc.jdk-api-base-urls]
+j8 = "https://docs.oracle.com/javase/8/docs/api/"
+j21 = "https://docs.oracle.com/en/java/javase/21/docs/api/"
+""")
+        jc = PombastConfig.load(toml_path).javadoc
+        assert jc.url_prefix == "https://javadoc.scijava.org"
+        assert jc.jdk_api_url_template == "/JDK{java}/"
+        assert jc.jdk_api_base_urls == {
+            "j8": "https://docs.oracle.com/javase/8/docs/api/",
+            "j21": "https://docs.oracle.com/en/java/javase/21/docs/api/",
+        }
+
+
 class TestPipelineConfig:
     def test_defaults(self):
         config = PipelineConfig(bom="org.scijava:pom-scijava:37.0.0")

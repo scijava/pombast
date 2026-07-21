@@ -111,6 +111,13 @@ class JavadocConfig:
     # "redirectmatch" (self-contained .htaccess, does not scale).
     redirect_format: str = "rewritemap"
     workers: int = 8
+    # Base URL template for JDK (java.*) class links, formatted with {java}
+    # (the Java version). The default reproduces SciJava's proxied /Java8/ style
+    # prefixes; set to an Oracle base for a standalone deployment.
+    jdk_api_url_template: str = "/Java{java}/"
+    # Explicit per-version JDK API bases (keyed "j8", "j21", …), overriding the
+    # template — needed where Oracle's URL structure differs between releases.
+    jdk_api_base_urls: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -219,6 +226,10 @@ class PombastConfig:
             url_prefix=javadoc_data.get("url-prefix", ""),
             redirect_format=javadoc_data.get("redirect-format", "rewritemap"),
             workers=int(javadoc_data.get("workers", 8)),
+            jdk_api_url_template=javadoc_data.get(
+                "jdk-api-url-template", "/Java{java}/"
+            ),
+            jdk_api_base_urls=dict(javadoc_data.get("jdk-api-base-urls", {})),
         )
 
         return cls(
