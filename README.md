@@ -185,7 +185,11 @@ Oracle/sun URLs across eras, modular `.../java.base/…` paths, the `/Java{N}/`
 proxy — is normalized the same way onto a configured API base at the component's
 **true** target Java version (read from its resolved `maven.compiler.release` /
 `scijava.jvm.version`), not the often-stale version baked into the original link.
-See `jdk-api-url-template` / `jdk-api-base-urls` below. The default template
+For Java 9+ the link is module-qualified (`…/java.base/java/lang/Object.html`)
+using the package→module map from the base's own `element-list` — the same file
+`javadoc -link` consumes — so no module table is bundled or can drift; Java 8
+bases (flat `package-list`, no modules) stay module-less. See
+`jdk-api-url-template` / `jdk-api-base-urls` below. The default template
 `/Java{java}/` reproduces SciJava's proxied prefixes.
 
 | Option | Description |

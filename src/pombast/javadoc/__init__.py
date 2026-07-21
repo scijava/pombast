@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from pombast.javadoc._crosslink import CrosslinkResult, CrosslinkStatus
+from pombast.javadoc._crosslink import (
+    CrosslinkResult,
+    CrosslinkStatus,
+    JdkModuleResolver,
+)
 from pombast.javadoc._pipeline import JavadocPipeline, JavadocReport
 from pombast.javadoc._unpack import UnpackResult, UnpackStatus
 
@@ -11,6 +15,7 @@ __all__ = [
     "CrosslinkStatus",
     "JavadocPipeline",
     "JavadocReport",
+    "JdkModuleResolver",
     "UnpackResult",
     "UnpackStatus",
 ]

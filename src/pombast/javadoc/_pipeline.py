@@ -18,6 +18,7 @@ from pombast.javadoc._crosslink import (
     ClassIndexer,
     CrosslinkResult,
     CrosslinkStatus,
+    JdkModuleResolver,
     crosslink_component,
 )
 from pombast.javadoc._deps import Closure, resolve_closure
@@ -171,6 +172,7 @@ class JavadocPipeline:
 
         # Phase 2: crosslink each managed component against its own closure.
         indexer = ClassIndexer(site)
+        jdk_resolver = JdkModuleResolver(cfg.url_prefix)
         empty_closure = Closure()
         with ThreadPoolExecutor(max_workers=workers) as pool:
             crosslink_futures = [
@@ -186,6 +188,7 @@ class JavadocPipeline:
                     ).java_version,
                     jdk_template=cfg.jdk_api_url_template,
                     jdk_base_urls=cfg.jdk_api_base_urls,
+                    jdk_resolver=jdk_resolver,
                     force=cfg.force,
                 )
                 for comp in components

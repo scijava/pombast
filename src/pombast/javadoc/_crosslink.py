@@ -27,7 +27,9 @@ anchors are never corrupted:
   eras, modular ``.../java.base/…`` paths, the SciJava ``/Java{N}/`` proxy, even
   unseen ones) is handled the same way. Such links are normalized onto a configured
   API base (see :func:`resolve_jdk_base`) at the component's *true* target Java
-  version as reported by jgo — not the often-stale version baked into the link.
+  version as reported by jgo — not the often-stale version baked into the link —
+  and module-qualified for Java 9+ from the base's own ``element-list`` (see
+  :class:`JdkModuleResolver`).
 """
 
 from __future__ import annotations
@@ -35,9 +37,10 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import urllib.request
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from pombast.javadoc._unpack import TOPLEVEL_HTML_DOCS, component_javadoc_dir
 
@@ -127,10 +130,9 @@ def resolve_jdk_base(
     which reproduces SciJava's proxied ``/Java8/`` prefixes). Returns ``None``
     when neither yields a base, meaning "leave the link untouched".
 
-    NOTE: modular Oracle URLs (Java 9+) embed a module segment
-    (``…/api/java.base/java/lang/String.html``) that this does not synthesize;
-    the flat ``java/lang/String.html`` path is appended as-is. Fine for the
-    proxied ``/Java{N}/`` case; explicit Oracle bases for Java 9+ are a known gap.
+    The module segment that Java 9+ URLs require (``…/java.base/java/lang/…``) is
+    added separately from the base's own ``element-list`` — see
+    :class:`JdkModuleResolver`.
     """
     if version is None:
         return None
@@ -143,6 +145,82 @@ def resolve_jdk_base(
         except (KeyError, IndexError):
             _log.warning("Malformed jdk_api_url_template: %r", template)
     return None
+
+
+def _parse_module_list(text: str) -> dict[str, str]:
+    """Parse a javadoc ``element-list`` into ``{package: module}``.
+
+    ``module:NAME`` lines open a section; the packages that follow belong to it.
+    A flat ``package-list`` (Java 8 and earlier) has no ``module:`` lines and thus
+    yields an empty map — correctly signalling "no module segment".
+    """
+    mapping: dict[str, str] = {}
+    module: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("module:"):
+            module = line[len("module:") :] or None
+        elif module is not None:
+            mapping[line] = module
+    return mapping
+
+
+# Fetches text from a URL; injectable so tests never touch the network.
+UrlOpener = Callable[[str], str]
+
+
+def _default_opener(url: str) -> str:
+    with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310 (http(s) only)
+        return resp.read().decode("utf-8", "replace")
+
+
+class JdkModuleResolver:
+    """Resolves and caches JDK package→module maps from a resolved API base.
+
+    Java 9+ javadoc URLs are module-qualified (``…/{module}/{pkg}/Class.html``).
+    The authoritative, version-exact package→module map for a base is its own
+    ``element-list`` — the same file ``javadoc -link`` consumes — so we fetch it
+    rather than bundling a map that would drift across releases. A base that
+    publishes only a flat ``package-list`` (Java 8) resolves to an empty map, i.e.
+    module-less links. Failures degrade gracefully to module-less.
+    """
+
+    def __init__(self, url_prefix: str = "", *, opener: UrlOpener = _default_opener):
+        self._url_prefix = url_prefix
+        self._opener = opener
+        self._cache: dict[str, dict[str, str]] = {}
+        self._lock = threading.Lock()
+
+    def modules(self, base: str) -> dict[str, str]:
+        """Return ``{package: module}`` for the JDK API rooted at ``base``."""
+        with self._lock:
+            cached = self._cache.get(base)
+        if cached is not None:
+            return cached
+        result = self._fetch(base)
+        with self._lock:
+            self._cache[base] = result
+        return result
+
+    def _fetch(self, base: str) -> dict[str, str]:
+        fetch_base = base
+        if base.startswith("/"):
+            if not self._url_prefix:
+                # A site-relative base has no host to fetch from; without one we
+                # cannot know modules, so fall back to module-less links.
+                return {}
+            fetch_base = f"{self._url_prefix.rstrip('/')}{base}"
+        fetch_base = fetch_base.rstrip("/")
+        for name in ("element-list", "package-list"):
+            try:
+                text = self._opener(f"{fetch_base}/{name}")
+            except Exception:  # noqa: BLE001 — any fetch failure ⇒ module-less
+                continue
+            return _parse_module_list(text)
+        _log.warning("No element-list/package-list for JDK base %s", base)
+        return {}
 
 
 class ClassIndexer:
@@ -241,20 +319,25 @@ def _jdk_class_path(href: str) -> tuple[str, str] | None:
     return None
 
 
+def _package_of(class_path: str) -> str:
+    """Return the dotted package of a ``pkg/path/Class.html`` class path."""
+    return "/".join(class_path.split("/")[:-1]).replace("/", ".")
+
+
 def _rewrite_href(
     href: str,
     index: ClassIndex,
     *,
     url_prefix: str,
-    java_version: int | None,
-    jdk_template: str,
-    jdk_base_urls: dict[str, str],
+    jdk_base: str | None,
+    jdk_modules: dict[str, str],
 ) -> str | None:
     """Return a repaired href, or ``None`` to leave it unchanged.
 
     A dependency link is an absolute *site* path (``/{prefix}/{class}.html``, the
     irreproducible legacy form) whose class is owned by a resolved dependency. A
-    JDK link is recognized by shape in any prefix form (see :func:`_jdk_class_path`).
+    JDK link is recognized by shape in any prefix form (see :func:`_jdk_class_path`)
+    and re-pointed at ``jdk_base``, module-qualified via ``jdk_modules`` for Java 9+.
     Component-internal relative links (``../../…``) are already valid and left alone.
     """
     rel = href
@@ -270,16 +353,17 @@ def _rewrite_href(
                 dep, relpath = owner
                 return f"{url_prefix}/{dep.group}/{dep.name}/{dep.version}/{relpath}{query}"
 
-    jdk = _jdk_class_path(href)
-    if jdk is not None:
-        class_path, query = jdk
-        base = resolve_jdk_base(java_version, jdk_template, jdk_base_urls)
-        if base is not None:
+    if jdk_base is not None:
+        jdk = _jdk_class_path(href)
+        if jdk is not None:
+            class_path, query = jdk
             # A site-relative base (e.g. the default "/Java21/") is anchored to the
             # deployed root, so it carries url_prefix like a dependency link would;
             # an absolute base (Oracle URL) is used verbatim.
-            prefix = url_prefix if base.startswith("/") else ""
-            return f"{prefix}{base.rstrip('/')}/{class_path}{query}"
+            prefix = url_prefix if jdk_base.startswith("/") else ""
+            module = jdk_modules.get(_package_of(class_path))
+            mod = f"{module}/" if module else ""
+            return f"{prefix}{jdk_base.rstrip('/')}/{mod}{class_path}{query}"
     return None
 
 
@@ -319,21 +403,22 @@ def crosslink_html(
     index: ClassIndex,
     *,
     url_prefix: str,
-    java_version: int | None = None,
-    jdk_template: str,
-    jdk_base_urls: dict[str, str],
+    jdk_base: str | None = None,
+    jdk_modules: dict[str, str] | None = None,
 ) -> tuple[str, int]:
     """Apply all three rewrites to one HTML document; return (html, n_rewrites).
 
     A single left-to-right pass over tags and the text between them: hrefs are
     repaired on ``<a>`` tags, and bare FQCNs are linked only in body text that is
     not already inside an anchor (avoiding nested/invalid ``<a>`` elements).
+
+    ``jdk_base`` is the already-resolved JDK API base (``None`` ⇒ leave JDK links
+    untouched); ``jdk_modules`` maps JDK package → module for Java 9+ qualification.
     """
     href_kw = dict(
         url_prefix=url_prefix,
-        java_version=java_version,
-        jdk_template=jdk_template,
-        jdk_base_urls=jdk_base_urls,
+        jdk_base=jdk_base,
+        jdk_modules=jdk_modules or {},
     )
     out: list[str] = []
     pos = 0
@@ -381,6 +466,7 @@ def crosslink_component(
     java_version: int | None = None,
     jdk_template: str = "/Java{java}/",
     jdk_base_urls: dict[str, str] | None = None,
+    jdk_resolver: JdkModuleResolver | None = None,
     force: bool = False,
 ) -> CrosslinkResult:
     """Crosslink one component's unpacked javadoc against its dependency closure.
@@ -396,6 +482,8 @@ def crosslink_component(
             the JDK API base; ``None`` leaves JDK links untouched.
         jdk_template: ``{java}``-templated base for JDK links.
         jdk_base_urls: Explicit per-version JDK API bases (``j8`` → URL).
+        jdk_resolver: Shared resolver for JDK package→module maps (Java 9+
+            qualification); ``None`` ⇒ module-less JDK links.
         force: Re-crosslink even if the marker is present.
     """
     javadoc_dir = component_javadoc_dir(site_dir, comp)
@@ -408,6 +496,12 @@ def crosslink_component(
         return CrosslinkResult(comp, CrosslinkStatus.CACHED)
 
     index = indexer.build(deps)
+    jdk_base = resolve_jdk_base(java_version, jdk_template, base_urls)
+    jdk_modules = (
+        jdk_resolver.modules(jdk_base)
+        if jdk_resolver is not None and jdk_base is not None
+        else {}
+    )
 
     files_changed = 0
     links = 0
@@ -420,9 +514,8 @@ def crosslink_component(
                 text,
                 index,
                 url_prefix=url_prefix,
-                java_version=java_version,
-                jdk_template=jdk_template,
-                jdk_base_urls=base_urls,
+                jdk_base=jdk_base,
+                jdk_modules=jdk_modules,
             )
             if n:
                 html.write_text(new_text, encoding="utf-8", errors="surrogateescape")

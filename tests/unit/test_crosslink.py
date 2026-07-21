@@ -6,6 +6,8 @@ from pombast.core import Component
 from pombast.javadoc._crosslink import (
     ClassIndex,
     ClassIndexer,
+    JdkModuleResolver,
+    _parse_module_list,
     crosslink_html,
     resolve_jdk_base,
 )
@@ -22,12 +24,24 @@ def _index() -> ClassIndex:
     }
 
 
-def _crosslink(html: str, index: ClassIndex | None = None, **kw) -> str:
-    kw.setdefault("url_prefix", "")
-    kw.setdefault("java_version", 8)
-    kw.setdefault("jdk_template", "/Java{java}/")
-    kw.setdefault("jdk_base_urls", {})
-    text, _ = crosslink_html(html, index if index is not None else _index(), **kw)
+def _crosslink(
+    html: str,
+    index: ClassIndex | None = None,
+    *,
+    url_prefix: str = "",
+    java_version: int | None = 8,
+    jdk_template: str = "/Java{java}/",
+    jdk_base_urls: dict[str, str] | None = None,
+    jdk_modules: dict[str, str] | None = None,
+) -> str:
+    base = resolve_jdk_base(java_version, jdk_template, jdk_base_urls or {})
+    text, _ = crosslink_html(
+        html,
+        index if index is not None else _index(),
+        url_prefix=url_prefix,
+        jdk_base=base,
+        jdk_modules=jdk_modules or {},
+    )
     return text
 
 
@@ -178,6 +192,86 @@ class TestJdkLinks:
         )
         out = _crosslink(html, java_version=17)
         assert 'href="/Java17/java/util/List.html"' in out
+
+
+class TestJdkModuleQualification:
+    _MODULES = {"java.lang": "java.base", "javax.swing": "java.desktop"}
+
+    def test_module_prefixed_for_java9plus(self):
+        html = '<a href="/Java8/java/lang/String.html">String</a>'
+        out = _crosslink(html, java_version=21, jdk_modules=self._MODULES)
+        assert 'href="/Java21/java.base/java/lang/String.html"' in out
+
+    def test_module_from_correct_package(self):
+        html = '<a href="/Java8/javax/swing/JPanel.html">JPanel</a>'
+        out = _crosslink(html, java_version=21, jdk_modules=self._MODULES)
+        assert 'href="/Java21/java.desktop/javax/swing/JPanel.html"' in out
+
+    def test_no_module_when_package_absent(self):
+        # Empty module map (e.g. Java 8) ⇒ module-less.
+        html = '<a href="/Java8/java/lang/String.html">String</a>'
+        out = _crosslink(html, java_version=8, jdk_modules={})
+        assert 'href="/Java8/java/lang/String.html"' in out
+
+    def test_absolute_modular_source_requalified(self):
+        html = (
+            '<a href="https://docs.oracle.com/en/java/javase/11/docs/api/'
+            'java.base/java/util/Map.html">Map</a>'
+        )
+        out = _crosslink(html, java_version=17, jdk_modules={"java.util": "java.base"})
+        assert 'href="/Java17/java.base/java/util/Map.html"' in out
+
+
+class TestParseModuleList:
+    def test_modular_element_list(self):
+        text = (
+            "module:java.base\njava.io\njava.lang\nmodule:java.desktop\njavax.swing\n"
+        )
+        assert _parse_module_list(text) == {
+            "java.io": "java.base",
+            "java.lang": "java.base",
+            "javax.swing": "java.desktop",
+        }
+
+    def test_flat_package_list_has_no_modules(self):
+        assert _parse_module_list("java.applet\njava.awt\njava.awt.color\n") == {}
+
+
+class TestJdkModuleResolver:
+    def test_fetches_and_caches(self):
+        calls: list[str] = []
+
+        def opener(url: str) -> str:
+            calls.append(url)
+            return "module:java.base\njava.lang\n"
+
+        r = JdkModuleResolver(url_prefix="https://javadoc.scijava.org", opener=opener)
+        assert r.modules("/Java21/") == {"java.lang": "java.base"}
+        assert r.modules("/Java21/") == {"java.lang": "java.base"}  # cached
+        assert calls == ["https://javadoc.scijava.org/Java21/element-list"]
+
+    def test_falls_back_to_package_list(self):
+        def opener(url: str) -> str:
+            if url.endswith("element-list"):
+                raise OSError("404")
+            return "java.applet\njava.awt\n"
+
+        r = JdkModuleResolver(opener=opener)
+        assert r.modules("https://docs.oracle.com/javase/8/docs/api/") == {}
+
+    def test_site_relative_base_without_prefix_is_module_less(self):
+        def opener(url: str) -> str:  # pragma: no cover - must not be called
+            raise AssertionError("should not fetch without a host")
+
+        r = JdkModuleResolver(url_prefix="", opener=opener)
+        assert r.modules("/Java21/") == {}
+
+    def test_fetch_failure_degrades_to_empty(self):
+        def opener(url: str) -> str:
+            raise OSError("network down")
+
+        r = JdkModuleResolver(opener=opener)
+        assert r.modules("https://docs.oracle.com/en/java/javase/21/docs/api/") == {}
 
 
 class TestPlainTextFqcn:
