@@ -34,7 +34,16 @@ _log = logging.getLogger(__name__)
 # Progress callbacks, invoked as each unit of a phase completes.
 UnpackCb = Callable[[UnpackResult], None]
 CrosslinkCb = Callable[[CrosslinkResult], None]
-ResolveCb = Callable[[Component], None]
+# on_resolve(component, top_level, top_level_total): top_level is True for the
+# managed components (the first wave), False for dependencies discovered deeper
+# in the recursive closure. top_level_total is len(managed components), so the
+# resolve bar can show top-level progress even though the grand total (managed +
+# full transitive closure) is unknowable until resolution reaches its fixpoint.
+ResolveCb = Callable[[Component, bool, int], None]
+# on_plan(total): fired once resolution reaches its fixpoint, carrying the final
+# count of components to unpack/crosslink. Lets those (determinate) phases show a
+# real M/N bar with an ETA.
+PlanCb = Callable[[int], None]
 
 
 @dataclass
@@ -105,6 +114,7 @@ class JavadocPipeline:
         self,
         *,
         on_resolve: ResolveCb | None = None,
+        on_plan: PlanCb | None = None,
         on_unpack: UnpackCb | None = None,
         on_crosslink: CrosslinkCb | None = None,
     ) -> JavadocReport:
@@ -142,8 +152,9 @@ class JavadocPipeline:
         # still stay unlinked; the index simply skips absent dirs.
         closures: dict[str, Closure] = {}
         unpack_targets: dict[str, Component] = {c.coordinate: c for c in components}
+        top_total = len(components)
 
-        def _resolve_wave(targets: list[Component]) -> None:
+        def _resolve_wave(targets: list[Component], *, top_level: bool) -> None:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futs = {pool.submit(resolve_closure, ctx, c): c for c in targets}
                 for fut in as_completed(futs):
@@ -153,12 +164,16 @@ class JavadocPipeline:
                     for dep in closure.deps:
                         unpack_targets.setdefault(dep.coordinate, dep)
                     if on_resolve is not None:
-                        on_resolve(comp)
+                        on_resolve(comp, top_level, top_total)
 
         pending = list(components)
+        top_level = True
         while pending:
-            _resolve_wave(pending)
+            _resolve_wave(pending, top_level=top_level)
+            top_level = False
             pending = [c for k, c in unpack_targets.items() if k not in closures]
+        if on_plan is not None:
+            on_plan(len(unpack_targets))
 
         # Phase 1: download + unpack + adjust every target (parallel, cached).
         with ThreadPoolExecutor(max_workers=workers) as pool:

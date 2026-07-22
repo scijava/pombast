@@ -154,8 +154,32 @@ def javadoc_cmd(
         unpack_task = progress.add_task("Unpacking…", total=None)
         crosslink_task = progress.add_task("Crosslinking…", total=None)
 
-        def _on_resolve(comp) -> None:
-            progress.update(resolve_task, advance=1, description=comp.coordinate)
+        # Resolution is a recursive fixpoint, so the grand total is unknown until
+        # it finishes. Show determinate progress over the top-level (managed)
+        # components; while deeper dependency waves resolve, keep the bar live with
+        # a running count of discovered deps. Once resolution completes, on_plan
+        # gives the full unpack-set size, making the later phases determinate.
+        deps_found = 0
+
+        def _on_resolve(comp, top_level, top_total) -> None:
+            nonlocal deps_found
+            if top_level:
+                progress.update(
+                    resolve_task,
+                    total=top_total,
+                    advance=1,
+                    description=comp.coordinate,
+                )
+            else:
+                deps_found += 1
+                progress.update(
+                    resolve_task,
+                    description=f"expanding closure (+{deps_found} deps): {comp.coordinate}",
+                )
+
+        def _on_plan(total) -> None:
+            progress.update(unpack_task, total=total)
+            progress.update(crosslink_task, total=total)
 
         def _on_unpack(result) -> None:
             progress.update(
@@ -169,6 +193,7 @@ def javadoc_cmd(
 
         report = pipeline.run(
             on_resolve=_on_resolve,
+            on_plan=_on_plan,
             on_unpack=_on_unpack,
             on_crosslink=_on_crosslink,
         )
