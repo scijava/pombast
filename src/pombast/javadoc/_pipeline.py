@@ -130,37 +130,35 @@ class JavadocPipeline:
         report = JavadocReport(bom=bom)
         workers = max(1, cfg.workers)
 
-        # Phase 0: resolve each managed component's actual dependency closure and
-        # target Java version. These versions (not the BOM's managed ones, nor the
-        # javadoc's stale baked-in JDK prefix) are what crosslinking targets. The
-        # unpack set is the managed components ∪ every resolved dependency, so link
-        # targets exist in the tree; every one is then *also* crosslinked, so links
-        # stay reproducible even when a reader browses into a dependency's pages.
+        # Phase 0: resolve the full recursive dependency closure. Each component's
+        # actual dependency versions and target Java version (not the BOM's managed
+        # versions, nor the javadoc's stale baked-in JDK prefix) are what crosslinking
+        # targets. We resolve wave by wave, expanding the unpack set with every newly
+        # discovered dependency, until the set reaches a fixpoint. This guarantees two
+        # invariants: every unpacked component has a resolved closure (so none is
+        # crosslinked against an empty index), AND every version any component
+        # references is itself unpacked (so links resolve all the way down instead of
+        # dangling at the dependency frontier). Refs to versions with no -javadoc JAR
+        # still stay unlinked; the index simply skips absent dirs.
         closures: dict[str, Closure] = {}
         unpack_targets: dict[str, Component] = {c.coordinate: c for c in components}
 
-        def _resolve(targets: list[Component], *, expand: bool) -> None:
+        def _resolve_wave(targets: list[Component]) -> None:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futs = {pool.submit(resolve_closure, ctx, c): c for c in targets}
                 for fut in as_completed(futs):
                     comp = futs[fut]
-                    closures[comp.coordinate] = fut.result()
-                    if expand:
-                        for dep in closures[comp.coordinate].deps:
-                            unpack_targets.setdefault(dep.coordinate, dep)
+                    closure = fut.result()
+                    closures[comp.coordinate] = closure
+                    for dep in closure.deps:
+                        unpack_targets.setdefault(dep.coordinate, dep)
                     if on_resolve is not None:
                         on_resolve(comp)
 
-        # The managed closures define the unpack/crosslink set. Then resolve the
-        # dependencies' own closures too, so each can be crosslinked against a real
-        # index — but WITHOUT expanding the set, so we never unpack a component we
-        # then fail to resolve (which would crosslink it against an empty closure).
-        # A dependency's closure may name versions we did not unpack; those refs
-        # simply stay unlinked (the index skips absent dirs).
-        _resolve(list(components), expand=True)
-        _resolve(
-            [c for k, c in unpack_targets.items() if k not in closures], expand=False
-        )
+        pending = list(components)
+        while pending:
+            _resolve_wave(pending)
+            pending = [c for k, c in unpack_targets.items() if k not in closures]
 
         # Phase 1: download + unpack + adjust every target (parallel, cached).
         with ThreadPoolExecutor(max_workers=workers) as pool:
