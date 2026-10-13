@@ -49,9 +49,9 @@ dev = [
 pombast = "pombast.__main__:main"
 
 [project.urls]
-homepage = "https://github.com/apposed/pombast"
-source = "https://github.com/apposed/pombast"
-tracker = "https://github.com/apposed/pombast/issues"
+homepage = "https://github.com/scijava/pombast"
+source = "https://github.com/scijava/pombast"
+tracker = "https://github.com/scijava/pombast/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
