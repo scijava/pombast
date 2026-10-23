@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Iterator
 
 from pombast.cache._pom_timestamp import PomTimestampCache
 from pombast.core._filter import ComponentFilter
 from pombast.maven._bytecode import BumpClassifier, candidate_floor
 from pombast.status._entry import StatusEntry
+from pombast.util._time import as_utc
 
 if TYPE_CHECKING:
     from pombast.core._component import Component
@@ -36,11 +37,12 @@ _GROUP_ORGS: dict[str, str] = {
 
 
 def _parse_ts(value: str) -> datetime:
-    """Parse a YYYYMMDDHHmmss timestamp string into a datetime."""
+    """Parse a YYYYMMDDHHmmss timestamp string into a UTC-aware datetime."""
     m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})", value.strip())
     if not m:
         raise ValueError(f"Cannot parse timestamp: {value!r}")
-    return datetime(*map(int, m.groups()))  # type: ignore[arg-type]
+    year, month, day, hour, minute, second = (int(g) for g in m.groups())
+    return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
 
 
 def load_kv_file(path: str) -> dict[str, str]:
@@ -122,7 +124,7 @@ def _pom_last_modified(
     artifact_id: str,
     version: str,
 ) -> datetime | None:
-    """Return Last-Modified timestamp of a release POM, using a persistent cache."""
+    """Return UTC Last-Modified timestamp of a release POM, using a persistent cache."""
     cached = _pom_ts_cache.get(group_id, artifact_id, version)
     if cached is not None:
         return cached
@@ -134,6 +136,7 @@ def _pom_last_modified(
         .last_modified()
     )
     if ts is not None:
+        ts = as_utc(ts)
         _pom_ts_cache.put(group_id, artifact_id, version, ts)
     return ts
 
@@ -220,6 +223,8 @@ def _fetch_one(
     if fetch_timestamps and latest:
         release_ts = _pom_last_modified(ctx, g, a, latest)
         last_updated = project.metadata.lastUpdated
+        if last_updated is not None:
+            last_updated = as_utc(last_updated)
 
     comp_data = comp_ov.get(f"{g}:{a}", {})
     url = (

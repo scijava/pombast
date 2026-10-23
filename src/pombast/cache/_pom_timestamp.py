@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from pombast.util._time import as_utc
+
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "pombast" / "pom-timestamps"
 
 
@@ -29,7 +31,7 @@ class PomTimestampCache:
         if not p.exists():
             return None
         try:
-            return datetime.fromisoformat(p.read_text().strip())
+            return as_utc(datetime.fromisoformat(p.read_text().strip()))
         except (ValueError, OSError):
             return None
 
