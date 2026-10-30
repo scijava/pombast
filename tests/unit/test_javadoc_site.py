@@ -1,0 +1,220 @@
+"""Tests for the javadoc union, site-wide maps, and hard-link-safe writes."""
+
+from __future__ import annotations
+
+import os
+
+from pombast.core import Component
+from pombast.javadoc._fs import atomic_write_text, swap_dir
+from pombast.javadoc._site import build_site_maps
+from pombast.javadoc._union import build_union
+from pombast.javadoc._unpack import _MARKER
+
+_BOM = "org.scijava/pom-scijava"
+
+
+def _comp(coord: str) -> Component:
+    g, a, v = coord.split(":")
+    return Component(group=g, name=a, version=v)
+
+
+def _javadoc(site, coord: str, pages: list[str], element_list: str) -> Component:
+    """Fake an unpacked component: marker, element-list, and empty class pages."""
+    comp = _comp(coord)
+    cdir = site / comp.group / comp.name / comp.version
+    cdir.mkdir(parents=True)
+    (cdir / _MARKER).write_text("")
+    (cdir / "element-list").write_text(element_list)
+    for page in pages:
+        (cdir / page).parent.mkdir(parents=True, exist_ok=True)
+        (cdir / page).write_text("<html></html>")
+    return comp
+
+
+def _flat(site, coord="org.scijava:scijava-common:2.99.0") -> Component:
+    return _javadoc(
+        site,
+        coord,
+        [
+            "index.html",
+            "allclasses-index.html",
+            "package-summary.html",  # top-level: not redirected
+            "index-files/index-1.html",
+            "org/scijava/Context.html",
+            "org/scijava/package-summary.html",
+        ],
+        "org.scijava\n",
+    )
+
+
+def _modular(site, coord="net.imagej:ij:1.54p") -> Component:
+    return _javadoc(
+        site,
+        coord,
+        [
+            "index.html",
+            "ij/module-summary.html",
+            "ij/ij/ImagePlus.html",
+            "ij/ij/package-summary.html",
+        ],
+        "module:ij\nij\n",
+    )
+
+
+def _tsv(site, version: str) -> dict[str, str]:
+    rows = (site / _BOM / version / "redirects.tsv").read_text().splitlines()
+    return dict(r.split("\t") for r in rows)
+
+
+class TestUnion:
+    def test_flat_component(self, tmp_path):
+        comp = _flat(tmp_path)
+        build_union(tmp_path, _comp("org.scijava:pom-scijava:45.1.0"), [comp])
+        assert _tsv(tmp_path, "45.1.0") == {
+            "/org.scijava/pom-scijava/45.1.0/org/scijava/Context.html": "/org.scijava/scijava-common/2.99.0/org/scijava/Context.html",
+            "/org.scijava/pom-scijava/45.1.0/org/scijava/package-summary.html": "/org.scijava/scijava-common/2.99.0/org/scijava/package-summary.html",
+        }
+
+    def test_modular_component_keyed_by_class_path(self, tmp_path):
+        comp = _modular(tmp_path)
+        build_union(tmp_path, _comp("org.scijava:pom-scijava:45.1.0"), [comp])
+        # The union's element-list is flat, so -link consumers request ij/…;
+        # the redirect target keeps the real module-nested location.
+        assert _tsv(tmp_path, "45.1.0") == {
+            "/org.scijava/pom-scijava/45.1.0/ij/ImagePlus.html": "/net.imagej/ij/1.54p/ij/ij/ImagePlus.html",
+            "/org.scijava/pom-scijava/45.1.0/ij/package-summary.html": "/net.imagej/ij/1.54p/ij/ij/package-summary.html",
+        }
+        elements = (tmp_path / _BOM / "45.1.0" / "element-list").read_text()
+        assert elements == "ij\n"
+
+    def test_shared_path_goes_to_first_component(self, tmp_path):
+        a = _flat(tmp_path, "org.scijava:scijava-common:2.99.0")
+        b = _flat(tmp_path, "org.scijava:scijava-other:1.0.0")
+        build_union(tmp_path, _comp("org.scijava:pom-scijava:45.1.0"), [b, a])
+        target = _tsv(tmp_path, "45.1.0")[
+            "/org.scijava/pom-scijava/45.1.0/org/scijava/package-summary.html"
+        ]
+        assert target.startswith("/org.scijava/scijava-other/")
+
+    def test_landing_page_and_no_stale_maps(self, tmp_path):
+        comp = _flat(tmp_path)
+        out = tmp_path / _BOM / "45.1.0"
+        out.mkdir(parents=True)
+        (out / "redirects.map").write_text("stale")
+        (out / "redirects.conf").write_text("stale")
+        build_union(tmp_path, _comp("org.scijava:pom-scijava:45.1.0"), [comp])
+        landing = (out / "index.html").read_text()
+        assert 'href="../../../org.scijava/scijava-common/2.99.0/"' in landing
+        assert not (out / "redirects.map").exists()
+        assert not (out / "redirects.conf").exists()
+
+
+class TestSiteMaps:
+    def _build(self, site):
+        common_old = _flat(site, "org.scijava:scijava-common:2.98.0")
+        (
+            site / "org.scijava/scijava-common/2.98.0/org/scijava/Removed.html"
+        ).write_text("")
+        common_new = _flat(site, "org.scijava:scijava-common:2.99.0")
+        build_union(site, _comp("org.scijava:pom-scijava:44.0.0"), [common_old])
+        build_union(site, _comp("org.scijava:pom-scijava:45.0.0"), [common_new])
+        build_union(
+            site, _comp("org.scijava:pom-scijava:45.1.1-SNAPSHOT"), [common_new]
+        )
+        return build_site_maps(site)
+
+    def _map(self, path) -> dict[str, str]:
+        return dict(line.split(" ") for line in path.read_text().splitlines())
+
+    def test_latest_excludes_snapshots(self, tmp_path):
+        self._build(tmp_path)
+        assert self._map(tmp_path / "latest.map") == {
+            "org.scijava/pom-scijava": "45.0.0",
+            "org.scijava/scijava-common": "2.99.0",
+        }
+
+    def test_redirects_span_all_unions(self, tmp_path):
+        result = self._build(tmp_path)
+        redirects = self._map(tmp_path / "redirects.map")
+        assert result.redirect_count == len(redirects) == 7
+        assert (
+            redirects["/org.scijava/pom-scijava/44.0.0/org/scijava/Removed.html"]
+            == "/org.scijava/scijava-common/2.98.0/org/scijava/Removed.html"
+        )
+
+    def test_fallback_covers_only_removed_paths(self, tmp_path):
+        self._build(tmp_path)
+        assert self._map(tmp_path / "latest-fallback.map") == {
+            "/org.scijava/pom-scijava/latest/org/scijava/Removed.html": "/org.scijava/pom-scijava/44.0.0/org/scijava/Removed.html",
+        }
+
+    def test_ignores_hidden_staging_dirs(self, tmp_path):
+        _flat(tmp_path, "org.scijava:scijava-common:2.99.0")
+        staging = tmp_path / "org.scijava/scijava-common/.3.0.0.staging"
+        staging.mkdir()
+        (staging / _MARKER).write_text("")
+        build_site_maps(tmp_path)
+        assert self._map(tmp_path / "latest.map") == {
+            "org.scijava/scijava-common": "2.99.0",
+        }
+
+
+class TestHardLinkSafety:
+    """Published files are hard links into the build tree; never edit in place."""
+
+    def test_atomic_write_leaves_hard_link_untouched(self, tmp_path):
+        built = tmp_path / "built.html"
+        built.write_text("old")
+        published = tmp_path / "published.html"
+        os.link(built, published)
+        atomic_write_text(built, "new")
+        assert built.read_text() == "new"
+        assert published.read_text() == "old"
+
+    def test_swap_dir_leaves_hard_link_untouched(self, tmp_path):
+        dest = tmp_path / "1.0.0"
+        dest.mkdir()
+        (dest / "A.html").write_text("old")
+        published = tmp_path / "published.html"
+        os.link(dest / "A.html", published)
+        staged = tmp_path / ".1.0.0.staging"
+        staged.mkdir()
+        (staged / "A.html").write_text("new")
+        swap_dir(staged, dest)
+        assert (dest / "A.html").read_text() == "new"
+        assert published.read_text() == "old"
+        assert not staged.exists()
+        assert not (tmp_path / ".1.0.0.old").exists()
+
+
+class TestGenerate:
+    def test_link_host_rewritten_site_relative(self, tmp_path):
+        from pombast.javadoc._generate import _LINK_HOST, _rewrite_link_host
+
+        page = tmp_path / "loci/formats/ImageReader.html"
+        page.parent.mkdir(parents=True)
+        page.write_text(f'<a href="{_LINK_HOST}/g/a/1.0/x/Y.html">Y</a>')
+        _rewrite_link_host(tmp_path, "")
+        assert page.read_text() == '<a href="/g/a/1.0/x/Y.html">Y</a>'
+
+    def test_link_host_rewritten_with_prefix(self, tmp_path):
+        from pombast.javadoc._generate import _LINK_HOST, _rewrite_link_host
+
+        page = tmp_path / "A.html"
+        page.write_text(f'<a href="{_LINK_HOST}/g/a/1.0/">a</a>')
+        _rewrite_link_host(tmp_path, "https://javadoc.scijava.org")
+        assert 'href="https://javadoc.scijava.org/g/a/1.0/"' in page.read_text()
+
+    def test_source_layout_from_package_declarations(self, tmp_path):
+        from pombast.javadoc._generate import _source_layout
+
+        nested = tmp_path / "jaxen-1.1/src/java/main/org/jaxen"
+        nested.mkdir(parents=True)
+        (nested / "XPath.java").write_text("/* c */\npackage org.jaxen;\nclass X {}")
+        (tmp_path / "Default.java").write_text("class D {}")
+        stray = tmp_path / "misplaced"
+        stray.mkdir()
+        (stray / "Y.java").write_text("package org.other;")
+        roots, packages = _source_layout(tmp_path)
+        assert roots == [tmp_path / "jaxen-1.1/src/java/main"]
+        assert packages == ["org.jaxen"]

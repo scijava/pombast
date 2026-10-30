@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
@@ -22,11 +23,14 @@ from pombast.javadoc._crosslink import (
     crosslink_component,
 )
 from pombast.javadoc._deps import Closure, resolve_closure
+from pombast.javadoc._generate import generate_component
+from pombast.javadoc._site import SiteMapsResult, build_site_maps
 from pombast.javadoc._union import UnionResult, build_union
 from pombast.javadoc._unpack import UnpackResult, UnpackStatus, unpack_component
 from pombast.maven._bom import load_bom
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 _log = logging.getLogger(__name__)
@@ -44,6 +48,23 @@ ResolveCb = Callable[[Component, bool, int], None]
 # count of components to unpack/crosslink. Lets those (determinate) phases show a
 # real M/N bar with an ETA.
 PlanCb = Callable[[int], None]
+
+
+@contextmanager
+def _pool(workers: int) -> Iterator[ThreadPoolExecutor]:
+    """A thread pool that drops its queued tasks if the caller fails.
+
+    A plain ``with ThreadPoolExecutor()`` runs every queued task before
+    re-raising; after a repository refusal (403) each would make its own
+    doomed request, so cancel them instead.
+    """
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
+        yield pool
+    except BaseException:
+        pool.shutdown(wait=True, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
 
 
 @dataclass
@@ -75,6 +96,7 @@ class JavadocReport:
     results: list[UnpackResult] = field(default_factory=list)
     crosslinks: list[CrosslinkResult] = field(default_factory=list)
     union: UnionResult | None = None
+    site_maps: SiteMapsResult | None = None
 
     def _by(self, status: UnpackStatus) -> list[UnpackResult]:
         return [r for r in self.results if r.status == status]
@@ -86,6 +108,10 @@ class JavadocReport:
     @property
     def cached(self) -> list[UnpackResult]:
         return self._by(UnpackStatus.CACHED)
+
+    @property
+    def generated(self) -> list[UnpackResult]:
+        return self._by(UnpackStatus.GENERATED)
 
     @property
     def missing(self) -> list[UnpackResult]:
@@ -155,7 +181,7 @@ class JavadocPipeline:
         top_total = len(components)
 
         def _resolve_wave(targets: list[Component], *, top_level: bool) -> None:
-            with ThreadPoolExecutor(max_workers=workers) as pool:
+            with _pool(workers) as pool:
                 futs = {pool.submit(resolve_closure, ctx, c): c for c in targets}
                 for fut in as_completed(futs):
                     comp = futs[fut]
@@ -175,8 +201,10 @@ class JavadocPipeline:
         if on_plan is not None:
             on_plan(len(unpack_targets))
 
+        empty_closure = Closure()
+
         # Phase 1: download + unpack + adjust every target (parallel, cached).
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        with _pool(workers) as pool:
             unpack_futures = [
                 pool.submit(
                     unpack_component,
@@ -194,13 +222,36 @@ class JavadocPipeline:
                 if on_unpack is not None:
                     on_unpack(unpack_result)
 
+        # Phase 1b: generate javadoc from -sources JARs where no -javadoc JAR was
+        # published. Runs after unpacking so that each generation can -linkoffline
+        # against its dependencies' (exact-version) javadoc already in the tree.
+        missing = [r for r in report.results if r.status == UnpackStatus.MISSING]
+        if missing:
+            with _pool(workers) as pool:
+                gen_futures = {
+                    pool.submit(
+                        generate_component,
+                        ctx,
+                        r.component,
+                        site,
+                        closures.get(r.component.coordinate, empty_closure).deps,
+                        closures.get(
+                            r.component.coordinate, empty_closure
+                        ).java_version,
+                        url_prefix=cfg.url_prefix,
+                    ): r
+                    for r in missing
+                }
+                for gf in as_completed(gen_futures):
+                    old_result = gen_futures[gf]
+                    report.results[report.results.index(old_result)] = gf.result()
+
         # Phase 2: crosslink every unpacked component against its own closure.
         indexer = ClassIndexer(site)
         jdk_resolver = JdkModuleResolver(
             cfg.url_prefix, cfg.jdk_api_url_template, cfg.jdk_api_base_urls
         )
-        empty_closure = Closure()
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        with _pool(workers) as pool:
             crosslink_futures = [
                 pool.submit(
                     crosslink_component,
@@ -232,6 +283,10 @@ class JavadocPipeline:
             components,
             redirect_format=cfg.redirect_format,
         )
+
+        # Phase 4: refresh the site-wide maps so they span every BOM version and
+        # component on disk, not just this run's.
+        report.site_maps = build_site_maps(site)
         return report
 
 

@@ -12,6 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from jgo.maven import RepositoryAccessDenied
+
 from pombast.core._component import Component
 
 if TYPE_CHECKING:
@@ -55,6 +57,8 @@ def resolve_closure(ctx: MavenContext, comp: Component) -> Closure:
         pom = ctx.project(comp.group, comp.name).at_version(comp.version).pom()
         model = Model(pom, ctx, lenient=True)
         deps, _tree = model.dependencies()
+    except RepositoryAccessDenied:
+        raise
     except Exception as e:
         _log.warning("Failed to resolve dependencies for %s: %s", comp.coordinate, e)
         return Closure()

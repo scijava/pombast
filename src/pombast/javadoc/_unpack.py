@@ -10,10 +10,15 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 from zipfile import BadZipFile, ZipFile
+
+from jgo.maven import RepositoryAccessDenied
+
+from pombast.javadoc._fs import atomic_write_text, swap_dir
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -70,6 +75,7 @@ class UnpackStatus(Enum):
 
     UNPACKED = "unpacked"  # freshly extracted this run
     CACHED = "cached"  # already present, skipped
+    GENERATED = "generated"  # built from the -sources JAR (no -javadoc JAR)
     MISSING = "missing"  # no -javadoc artifact published
     ERROR = "error"  # download/extract failed
 
@@ -125,18 +131,28 @@ def unpack_component(
             .artifact(classifier="javadoc", packaging="jar")
             .resolve()
         )
+    except RepositoryAccessDenied:
+        raise
     except Exception as e:  # jgo raises RuntimeError when it cannot resolve
         _log.info("No javadoc artifact for %s (%s)", comp.coordinate, e)
         return UnpackResult(comp, UnpackStatus.MISSING, error=str(e))
 
+    # Unpack into a sibling staging dir and swap it into place only once
+    # complete, so a (possibly hard-linked, published) existing dir is never
+    # overwritten file by file.
+    staged = javadoc_dir.with_name(f".{javadoc_dir.name}.staging")
     try:
-        _extract(jar, javadoc_dir)
-        _adjust_legacy_links(javadoc_dir, url_prefix)
+        if staged.exists():
+            shutil.rmtree(staged)
+        _extract(jar, staged)
+        _adjust_legacy_links(staged, url_prefix)
+        (staged / _MARKER).write_text("")
+        swap_dir(staged, javadoc_dir)
     except (BadZipFile, OSError) as e:
+        shutil.rmtree(staged, ignore_errors=True)
         _log.warning("Failed to unpack javadoc for %s: %s", comp.coordinate, e)
         return UnpackResult(comp, UnpackStatus.ERROR, javadoc_dir, error=str(e))
 
-    marker.write_text("")
     _log.info("Unpacked javadoc for %s", comp.coordinate)
     return UnpackResult(comp, UnpackStatus.UNPACKED, javadoc_dir)
 
@@ -161,4 +177,4 @@ def _adjust_legacy_links(javadoc_dir: Path, url_prefix: str) -> None:
             continue
         new_text, n = _LEGACY_LINK.subn(replacement, text)
         if n:
-            html.write_text(new_text, encoding="utf-8", errors="surrogateescape")
+            atomic_write_text(html, new_text, errors="surrogateescape")

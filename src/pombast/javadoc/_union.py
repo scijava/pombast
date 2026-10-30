@@ -8,19 +8,30 @@ The union directory (``site/{bom.g}/{bom.a}/{bom.v}/``) is a single, reproducibl
   dependency (the linear-scaling cost this whole exercise exists to avoid).
 * ``redirects.tsv`` — the **canonical, server-agnostic** map from a union path
   to the owning component's real path, one row per class/package page.
-* A rendered server config (``.htaccess`` and/or ``redirects.map`` + snippet)
-  derived from ``redirects.tsv``.
+* ``index.html`` — a landing page listing the contributing components.
+* Optionally (``redirectmatch`` format) a self-contained ``.htaccess``. The
+  scalable ``rewritemap`` format is rendered site-wide instead, across every
+  union in the tree (see :mod:`pombast.javadoc._site`).
+
+Union paths are keyed by the *non-modular* class path (``ij/ImagePlus.html``),
+matching the flat ``element-list`` the union publishes — which is what a
+``javadoc -link`` consumer (and any legacy link) will request. The redirect
+target keeps the component's real, possibly module-nested, location
+(``ij/ij/ImagePlus.html``).
 
 Actual class HTML is never duplicated into the union — the union only redirects.
 """
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pombast.javadoc._crosslink import _module_names
+from pombast.javadoc._fs import atomic_write_text
 from pombast.javadoc._unpack import TOPLEVEL_HTML_DOCS, component_javadoc_dir
 
 if TYPE_CHECKING:
@@ -30,10 +41,15 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-# Redirect renderers. "rewritemap" scales (O(1) hashed lookup) but the
-# RewriteMap directive must be declared in server/vhost config, not .htaccess.
-# "redirectmatch" works in a bare .htaccess but evaluates rules linearly per
-# request, so it does not scale to a full BOM — offered as a fallback only.
+# Top-level directories of generated javadoc whose pages are artifact-wide
+# scaffolding (they would collide across components), not per-class/package.
+_SKIP_DIRS = frozenset({"index-files", "legal", "resources", "script-dir"})
+
+# Redirect renderers. "rewritemap" scales (hashed DBM lookup, rendered site-wide
+# by pombast.javadoc._site) but the RewriteMap directive must be declared in
+# server/vhost config, not .htaccess. "redirectmatch" works in a bare .htaccess
+# but evaluates rules linearly per request, so it does not scale to a full BOM —
+# offered as a fallback only.
 REDIRECT_FORMATS = ("rewritemap", "redirectmatch")
 
 
@@ -75,40 +91,52 @@ def build_union(
     out.mkdir(parents=True, exist_ok=True)
 
     packages: set[str] = set()
-    redirects: list[tuple[str, str]] = []  # (union_path, component_path)
-    contributing = 0
+    # union_path -> component_path. A path two components share (e.g. the
+    # package-summary.html of a split package) goes to the first component in
+    # BOM order, so the result is deterministic.
+    redirects: dict[str, str] = {}
+    contributing: list[Component] = []
 
     for comp in components:
         cdir = component_javadoc_dir(site_dir, comp)
         if not cdir.is_dir():
             continue
-        contributing += 1
+        contributing.append(comp)
         packages.update(_read_packages(cdir))
-        redirects.extend(_component_redirects(cdir, bom, comp))
+        for u, c in _component_redirects(cdir, bom, comp):
+            redirects.setdefault(u, c)
 
     result = UnionResult(
         union_dir=out,
         package_count=len(packages),
         redirect_count=len(redirects),
-        component_count=contributing,
+        component_count=len(contributing),
     )
 
     # element-list and package-list share the same (package-per-line) format.
     index_body = "".join(f"{pkg}\n" for pkg in sorted(packages))
     for name in ("element-list", "package-list"):
         path = out / name
-        path.write_text(index_body, encoding="utf-8")
+        atomic_write_text(path, index_body)
         result.artifacts.append(path)
 
-    # Canonical, server-agnostic redirect table (sorted + de-duped).
-    redirects = sorted(set(redirects))
+    # Canonical, server-agnostic redirect table (sorted by union path).
+    rows = sorted(redirects.items())
     tsv = out / "redirects.tsv"
-    tsv.write_text(
-        "".join(f"{u}\t{c}\n" for u, c in redirects), encoding="utf-8"
-    )
+    atomic_write_text(tsv, "".join(f"{u}\t{c}\n" for u, c in rows))
     result.artifacts.append(tsv)
 
-    result.artifacts.extend(_render_redirects(out, redirects, redirect_format))
+    landing = out / "index.html"
+    atomic_write_text(landing, _landing_page(bom, contributing))
+    result.artifacts.append(landing)
+
+    if redirect_format == "redirectmatch":
+        result.artifacts.append(_render_redirectmatch(out, rows))
+
+    # Per-union RewriteMap files from earlier pombast versions are superseded by
+    # the site-wide maps; drop any stale copies so they are not published.
+    for stale in ("redirects.map", "redirects.conf"):
+        (out / stale).unlink(missing_ok=True)
 
     _log.info(
         "Union %s: %d packages, %d redirects from %d components",
@@ -144,63 +172,57 @@ def _read_packages(cdir: Path) -> set[str]:
 def _component_redirects(
     cdir: Path, bom: Component, comp: Component
 ) -> list[tuple[str, str]]:
-    """Yield (union_path, component_path) for each class/package page."""
+    """Yield (union_path, component_path) for each class/package page.
+
+    For modular javadoc the leading ``{module}/`` segment is dropped from the
+    union path only (see module docstring). Artifact-wide pages — top-level
+    index/overview documents, module summaries, the split index — are skipped,
+    since each component has its own and they would collide in the union.
+    """
     bom_prefix = f"/{bom.group}/{bom.name}/{bom.version}"
     comp_prefix = f"/{comp.group}/{comp.name}/{comp.version}"
+    modules = _module_names(cdir)
     out: list[tuple[str, str]] = []
-    for html in cdir.rglob("*.html"):
-        if html.name in TOPLEVEL_HTML_DOCS or not html.is_file():
+    for page in cdir.rglob("*.html"):
+        if not page.is_file():
             continue
-        rel = html.relative_to(cdir).as_posix()  # no leading slash — avoids //
-        out.append((f"{bom_prefix}/{rel}", f"{comp_prefix}/{rel}"))
+        rel = page.relative_to(cdir).as_posix()  # no leading slash — avoids //
+        parts = rel.split("/")
+        if modules and len(parts) > 1 and parts[0] in modules:
+            parts = parts[1:]
+        if parts[0] in _SKIP_DIRS:
+            continue
+        if len(parts) == 1 and (
+            parts[0] in TOPLEVEL_HTML_DOCS or parts[0].startswith("module-")
+        ):
+            continue
+        out.append((f"{bom_prefix}/{'/'.join(parts)}", f"{comp_prefix}/{rel}"))
     return out
 
 
-def _render_redirects(
-    out: Path, redirects: list[tuple[str, str]], fmt: str
-) -> list[Path]:
-    """Render server redirect config; return the files written."""
-    if fmt == "redirectmatch":
-        return _render_redirectmatch(out)  # reads redirects.tsv-derived list
-    return _render_rewritemap(out, redirects)
-
-
-def _render_rewritemap(out: Path, redirects: list[tuple[str, str]]) -> list[Path]:
-    """Emit a RewriteMap txt file plus a server-config snippet.
-
-    Apache hashes a ``txt:`` map in memory, giving O(1) lookups regardless of
-    catalog size. The ``RewriteMap`` directive is only valid in server/vhost
-    context, so we also emit a ready-to-include snippet documenting it.
-    """
-    map_path = out / "redirects.map"
-    map_path.write_text(
-        "".join(f"{u} {c}\n" for u, c in redirects), encoding="utf-8"
+def _landing_page(bom: Component, components: list[Component]) -> str:
+    """Render the union's ``index.html``: links to each contributing component."""
+    items = "".join(
+        f'<li><a href="../../../{html.escape(c.group)}/{html.escape(c.name)}/'
+        f'{html.escape(c.version)}/">{html.escape(c.coordinate)}</a></li>\n'
+        for c in sorted(components, key=lambda c: (c.group, c.name))
+    )
+    title = html.escape(bom.coordinate)
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        f"<title>{title} javadoc</title>\n</head>\n<body>\n"
+        f"<h1>{title}</h1>\n"
+        f"<p>Javadoc for the {len(components)} components managed by this BOM.</p>\n"
+        f"<ul>\n{items}</ul>\n</body>\n</html>\n"
     )
 
-    conf_path = out / "redirects.conf"
-    conf_path.write_text(
-        "# Include this in the server/vhost config (RewriteMap is not allowed\n"
-        "# inside .htaccess). For very large maps, convert to a DBM at deploy\n"
-        "# time with: httxt2dbm -i redirects.map -o redirects.map.db\n"
-        f'RewriteMap javadoc "txt:{map_path}"\n'
-        "RewriteCond %{REQUEST_URI} ^(/[^/]+/[^/]+/[^/]+/.+)$\n"
-        "RewriteRule . ${javadoc:%1} [R=301,L,NE]\n",
-        encoding="utf-8",
-    )
-    return [map_path, conf_path]
 
-
-def _render_redirectmatch(out: Path) -> list[Path]:
+def _render_redirectmatch(out: Path, rows: list[tuple[str, str]]) -> Path:
     """Emit a self-contained .htaccess of RedirectMatch rules (does not scale)."""
-    lines: list[str] = []
-    tsv = out / "redirects.tsv"
-    for row in tsv.read_text(encoding="utf-8").splitlines():
-        union_path, _, comp_path = row.partition("\t")
-        if not comp_path:
-            continue
-        lines.append(
-            f'RedirectMatch permanent "^{re.escape(union_path)}$" {comp_path}\n'
-        )
     htaccess = out / ".htaccess"
-    htaccess.write_text("".join(lines), encoding="utf-8")
-    return [htaccess]
+    atomic_write_text(
+        htaccess,
+        "".join(f'RedirectMatch permanent "^{re.escape(u)}$" {c}\n' for u, c in rows),
+    )
+    return htaccess

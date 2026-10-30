@@ -46,7 +46,9 @@ def load_bom(
     remote_repos = dict(repositories) if repositories else {}
     remote_repos.setdefault("central", "https://repo1.maven.org/maven2")
 
-    ctx = MavenContext(remote_repos=remote_repos)
+    # Stop at the first 403: a repository blocking us must not be misread as
+    # thousands of missing artifacts (nor keep being hit while blocked).
+    ctx = MavenContext(remote_repos=remote_repos, fail_on_denied=True)
 
     bom_path = Path(bom)
     if bom_path.is_dir() or bom_path.joinpath("pom.xml").exists():

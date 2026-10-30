@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
+from pombast.javadoc._fs import atomic_write_text
 from pombast.javadoc._unpack import TOPLEVEL_HTML_DOCS, component_javadoc_dir
 
 if TYPE_CHECKING:
@@ -597,14 +598,14 @@ def crosslink_component(
                 jdk_modules=jdk_modules,
             )
             if n:
-                html.write_text(new_text, encoding="utf-8", errors="surrogateescape")
+                atomic_write_text(html, new_text, errors="surrogateescape")
                 files_changed += 1
                 links += n
     except OSError as e:
         _log.warning("Failed to crosslink %s: %s", comp.coordinate, e)
         return CrosslinkResult(comp, CrosslinkStatus.ERROR, error=str(e))
 
-    marker.write_text("")
+    atomic_write_text(marker, "")
     _log.info(
         "Crosslinked %s: %d links across %d files",
         comp.coordinate,

@@ -202,6 +202,7 @@ def javadoc_cmd(
     console.print(
         f"Unpacked: [green]{len(report.unpacked)}[/green]  "
         f"Cached: [cyan]{len(report.cached)}[/cyan]  "
+        f"Generated: [green]{len(report.generated)}[/green]  "
         f"Missing: [yellow]{len(report.missing)}[/yellow]  "
         f"Errors: [red]{len(report.errors)}[/red]"
     )
@@ -216,4 +217,10 @@ def javadoc_cmd(
             f"{u.package_count} packages, {u.redirect_count} redirects "
             f"from {u.component_count} components."
         )
-        console.print(f"Wrote site to: [cyan]{run_config.output_dir}[/cyan]")
+    if report.site_maps is not None:
+        m = report.site_maps
+        console.print(
+            f"Site maps: {m.redirect_count} redirects, "
+            f"{m.latest_count} latest versions, {m.fallback_count} latest fallbacks."
+        )
+    console.print(f"Wrote site to: [cyan]{run_config.output_dir}[/cyan]")
