@@ -37,6 +37,10 @@ def _parse_defines(specs: tuple[str, ...]) -> dict[str, str]:
 @click.version_option(version=__version__)
 def cli() -> None:
     """pombast — validate and monitor Maven BOM components."""
+    from jgo.util import http
+
+    # Identify ourselves to Maven repositories (ahead of jgo's own token).
+    http.set_user_agent(f"pombast/{__version__} (+https://github.com/scijava/pombast)")
 
 
 @cli.command("smelt")

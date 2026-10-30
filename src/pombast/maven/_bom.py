@@ -28,6 +28,12 @@ class BomData:
         self.pom_path = pom_path
 
 
+# Minimum seconds between requests to each remote repository, across all worker
+# threads: caps pombast's request rate (here ~10/s per repository) no matter
+# how many components it resolves in parallel.
+MIN_REQUEST_INTERVAL = 0.1
+
+
 def load_bom(
     bom: str,
     *,
@@ -48,7 +54,11 @@ def load_bom(
 
     # Stop at the first 403: a repository blocking us must not be misread as
     # thousands of missing artifacts (nor keep being hit while blocked).
-    ctx = MavenContext(remote_repos=remote_repos, fail_on_denied=True)
+    ctx = MavenContext(
+        remote_repos=remote_repos,
+        fail_on_denied=True,
+        min_interval=MIN_REQUEST_INTERVAL,
+    )
 
     bom_path = Path(bom)
     if bom_path.is_dir() or bom_path.joinpath("pom.xml").exists():

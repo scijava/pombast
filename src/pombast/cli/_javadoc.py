@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 import rich_click as click
+from jgo.util import http
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -222,5 +223,11 @@ def javadoc_cmd(
         console.print(
             f"Site maps: {m.redirect_count} redirects, "
             f"{m.latest_count} latest versions, {m.fallback_count} latest fallbacks."
+        )
+    counts = http.request_counts()
+    if counts:
+        console.print(
+            "Remote requests: "
+            + ", ".join(f"{host} {n}" for host, n in sorted(counts.items()))
         )
     console.print(f"Wrote site to: [cyan]{run_config.output_dir}[/cyan]")
