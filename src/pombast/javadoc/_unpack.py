@@ -161,7 +161,34 @@ def _extract(jar: Path, dest: Path) -> None:
     """Extract a javadoc JAR into ``dest`` (created if needed)."""
     dest.mkdir(parents=True, exist_ok=True)
     with ZipFile(jar) as z:
+        _dedupe_central_directory(z)
         z.extractall(dest)
+
+
+def _dedupe_central_directory(z: ZipFile) -> None:
+    """Drop central-directory entries that repeat an earlier entry's local header.
+
+    Some javadoc JARs (e.g. ASM 5.0.x) list every entry twice, both pointing at
+    the same local header. That is harmless, but Python 3.12+'s zip-bomb check
+    bounds each entry by the next entry's header offset, so the duplicate gets a
+    zero-length bound and extraction fails with "Overlapped entries". Keeping
+    one entry per offset and recomputing those bounds as zipfile itself does
+    restores a normal archive; genuinely overlapping data is still rejected.
+    """
+    seen: set[int] = set()
+    unique = []
+    for info in z.filelist:
+        if info.header_offset not in seen:
+            seen.add(info.header_offset)
+            unique.append(info)
+    if len(unique) == len(z.filelist):
+        return
+    z.filelist[:] = unique
+    z.NameToInfo = {info.filename: info for info in unique}
+    end_offset = z.start_dir  # type: ignore[attr-defined]
+    for info in sorted(unique, key=lambda i: i.header_offset, reverse=True):
+        info._end_offset = end_offset  # type: ignore[attr-defined]
+        end_offset = info.header_offset
 
 
 def _adjust_legacy_links(javadoc_dir: Path, url_prefix: str) -> None:
