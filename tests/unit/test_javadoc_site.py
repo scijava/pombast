@@ -218,3 +218,88 @@ class TestGenerate:
         roots, packages = _source_layout(tmp_path)
         assert roots == [tmp_path / "jaxen-1.1/src/java/main"]
         assert packages == ["org.jaxen"]
+
+
+def _duplicate_central_directory(jar) -> None:
+    """Rewrite ``jar`` so its central directory lists every entry twice."""
+    import struct
+
+    data = jar.read_bytes()
+    eocd = data.rindex(b"PK\x05\x06")
+    (_, _, _, _, count, cd_size, cd_offset, _) = struct.unpack(
+        "<4sHHHHIIH", data[eocd : eocd + 22]
+    )
+    cd = data[cd_offset : cd_offset + cd_size]
+    tail = struct.pack(
+        "<4sHHHHIIH", b"PK\x05\x06", 0, 0, 2 * count, 2 * count, 2 * cd_size,
+        cd_offset, 0,
+    )  # fmt: skip
+    jar.write_bytes(data[:cd_offset] + cd + cd + tail)
+
+
+class TestUnpack:
+    def test_extracts_jar_with_duplicated_central_directory(self, tmp_path):
+        from zipfile import ZipFile
+
+        from pombast.javadoc._unpack import _extract
+
+        jar = tmp_path / "asm-javadoc.jar"
+        with ZipFile(jar, "w") as z:
+            z.writestr("index.html", "<html>index</html>")
+            z.writestr("org/objectweb/asm/ClassVisitor.html", "<html>cv</html>")
+        _duplicate_central_directory(jar)
+        with ZipFile(jar) as z:
+            assert len(z.infolist()) == 4  # as in ASM 5.0.x javadoc JARs
+
+        dest = tmp_path / "out"
+        _extract(jar, dest)
+        assert (dest / "index.html").read_text() == "<html>index</html>"
+        assert (
+            dest / "org/objectweb/asm/ClassVisitor.html"
+        ).read_text() == "<html>cv</html>"
+
+
+class TestSnapshotRounding:
+    def _ctx(self, tmp_path, monkeypatch, versions):
+        from jgo.maven import MavenContext
+
+        from pombast.javadoc import _deps
+
+        monkeypatch.setattr(_deps, "_rounded", {})
+
+        def no_network(*args, **kwargs):
+            raise AssertionError("unexpected HTTP request")
+
+        monkeypatch.setattr("jgo.util.http.request", no_network)
+        meta = tmp_path / "sc/fiji/spim_data/maven-metadata-central.xml"
+        meta.parent.mkdir(parents=True)
+        listed = "".join(f"<version>{v}</version>" for v in versions)
+        meta.write_text(
+            "<metadata><groupId>sc.fiji</groupId><artifactId>spim_data</artifactId>"
+            f"<versioning><versions>{listed}</versions></versioning></metadata>"
+        )
+        # Fresh cached metadata: update(max_age=...) makes no request.
+        return MavenContext(
+            repo_cache=tmp_path, local_repos=[], remote_repos={"central": "x"}
+        )
+
+    def _round(self, ctx, version):
+        from pombast.javadoc._deps import _round_snapshot
+
+        return _round_snapshot(ctx, "sc.fiji", "spim_data", version)
+
+    def test_rounds_to_the_release_it_led_up_to(self, tmp_path, monkeypatch):
+        ctx = self._ctx(tmp_path, monkeypatch, ["0.2.0", "0.2.1", "0.3.0"])
+        assert self._round(ctx, "0.2.1-SNAPSHOT") == "0.2.1"
+
+    def test_else_newest_older_release(self, tmp_path, monkeypatch):
+        ctx = self._ctx(tmp_path, monkeypatch, ["0.1.9", "0.2.0", "0.3.0"])
+        assert self._round(ctx, "0.2.1-SNAPSHOT") == "0.2.0"
+
+    def test_else_oldest_newer_release(self, tmp_path, monkeypatch):
+        ctx = self._ctx(tmp_path, monkeypatch, ["1.0.0", "0.4.0", "0.5.0-SNAPSHOT"])
+        assert self._round(ctx, "0.2.1-SNAPSHOT") == "0.4.0"
+
+    def test_no_releases_drops_it(self, tmp_path, monkeypatch):
+        ctx = self._ctx(tmp_path, monkeypatch, ["0.2.1-SNAPSHOT"])
+        assert self._round(ctx, "0.2.1-SNAPSHOT") is None
