@@ -9,7 +9,9 @@ analysis.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass, field
+from functools import cmp_to_key
 from typing import TYPE_CHECKING
 
 from jgo.maven import RepositoryAccessDenied
@@ -74,9 +76,65 @@ def resolve_closure(ctx: MavenContext, comp: Component) -> Closure:
         if ga in seen:
             continue
         seen.add(ga)
-        result.append(Component(group=d.groupId, name=d.artifactId, version=d.version))
+        version = d.version
+        if version.endswith("-SNAPSHOT"):
+            rounded = _round_snapshot(ctx, d.groupId, d.artifactId, version)
+            if rounded is None:
+                continue
+            version = rounded
+        result.append(Component(group=d.groupId, name=d.artifactId, version=version))
 
     return Closure(deps=result, java_version=_java_version(model.props))
+
+
+# How long cached maven-metadata.xml (versions of a SNAPSHOT dependency's
+# project) is trusted before being re-fetched, in seconds.
+_METADATA_MAX_AGE = 24 * 60 * 60
+
+_rounded: dict[str, str | None] = {}
+_rounded_lock = threading.Lock()
+
+
+def _round_snapshot(
+    ctx: MavenContext, group: str, artifact: str, version: str
+) -> str | None:
+    """Map a SNAPSHOT dependency onto the closest release, for crosslinking.
+
+    Released components occasionally declare SNAPSHOT dependencies (e.g.
+    ``spim_data:0.2.1-SNAPSHOT``). SNAPSHOTs are not reproducible, and old ones
+    are long gone from every repository, so link against a release instead:
+    ``X`` for ``X-SNAPSHOT`` (the release that SNAPSHOT led up to) if it exists,
+    else the newest release before ``X``, else the oldest one after it. Returns
+    None, dropping the dependency, if the project has no releases at all.
+    Memoized, since many closures share the same SNAPSHOT dependencies.
+    """
+    from jgo.maven import compare_versions
+
+    key = f"{group}:{artifact}:{version}"
+    with _rounded_lock:
+        if key in _rounded:
+            return _rounded[key]
+        base = version[: -len("-SNAPSHOT")]
+        project = ctx.project(group, artifact)
+        project.update(max_age=_METADATA_MAX_AGE)
+        releases = [v.version for v in project.versions(releases=True)]
+        older = [v for v in releases if compare_versions(v, base) < 0]
+        newer = [v for v in releases if compare_versions(v, base) > 0]
+        rounded: str | None
+        if base in releases:
+            rounded = base
+        elif older:
+            rounded = max(older, key=cmp_to_key(compare_versions))
+        elif newer:
+            rounded = min(newer, key=cmp_to_key(compare_versions))
+        else:
+            rounded = None
+        if rounded is None:
+            _log.info("Dropping %s: no releases to link against", key)
+        else:
+            _log.info("Linking %s against release %s", key, rounded)
+        _rounded[key] = rounded
+        return rounded
 
 
 def _java_version(props: dict[str, str]) -> int | None:
