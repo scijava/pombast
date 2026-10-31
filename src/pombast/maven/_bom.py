@@ -33,6 +33,13 @@ class BomData:
 # how many components it resolves in parallel.
 MIN_REQUEST_INTERVAL = 0.1
 
+# How long a remote 404 is trusted before asking again. jgo's default is a day,
+# but pombast probes thousands of optional classifiers (-javadoc, -sources) of
+# long-released versions, which essentially never appear later; re-probing them
+# daily would make multi-day work (e.g. a javadoc backfill) cost the same every
+# day. Misses on Maven Central for versions that exist are kept for good anyway.
+MISS_TTL = 30 * 24 * 60 * 60
+
 
 def load_bom(
     bom: str,
@@ -58,6 +65,7 @@ def load_bom(
         remote_repos=remote_repos,
         fail_on_denied=True,
         min_interval=MIN_REQUEST_INTERVAL,
+        miss_ttl=MISS_TTL,
     )
 
     bom_path = Path(bom)
