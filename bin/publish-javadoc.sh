@@ -2,7 +2,7 @@
 #
 # publish-javadoc.sh - publish a pombast javadoc build tree atomically.
 #
-# Usage: publish-javadoc.sh [-n] [-k KEEP] BUILD RELEASES LIVE
+# Usage: publish-javadoc.sh [-n] [-k KEEP] [-s SITE] BUILD RELEASES LIVE
 #
 #   BUILD     the tree `pombast javadoc -o` writes to (never modified here)
 #   RELEASES  directory holding published snapshots, one per publish
@@ -10,6 +10,9 @@
 #             switched to the new snapshot in a single rename
 #   -n        dry run: show what would happen, change nothing
 #   -k KEEP   snapshots to keep (default 3); the live one is never removed
+#   -s SITE   also copy the site's own static files (front page, styles,
+#             icons) from this dir into the snapshot, over the build; its
+#             hidden files, *.md and licenses are not published
 #
 # A snapshot hard-links every unchanged file to the build tree, so it costs
 # little more than its directories. This is safe because pombast never
@@ -23,16 +26,18 @@ set -euo pipefail
 
 dry=
 keep=3
-while getopts "nk:" opt; do
+site=
+while getopts "nk:s:" opt; do
   case "$opt" in
     n) dry=1 ;;
     k) keep=$OPTARG ;;
-    *) sed -n '3,14s/^# \{0,1\}//p' "$0" >&2; exit 2 ;;
+    s) site=$(realpath "$OPTARG") ;;
+    *) sed -n '3,17s/^# \{0,1\}//p' "$0" >&2; exit 2 ;;
   esac
 done
 shift $((OPTIND - 1))
 if [ $# -ne 3 ]; then
-  sed -n '3,14s/^# \{0,1\}//p' "$0" >&2
+  sed -n '3,17s/^# \{0,1\}//p' "$0" >&2
   exit 2
 fi
 build=$(realpath "$1")
@@ -45,6 +50,7 @@ run() {
   [ -n "$dry" ] || "$@"
 }
 
+[ -z "$site" ] || [ -f "$site/index.html" ] || die "$site has no index.html"
 [ -f "$build/latest.map" ] || die "$build has no latest.map; not a pombast javadoc tree?"
 [ -s "$build/latest.map" ] || die "$build/latest.map is empty"
 if [ -e "$live" ] && [ ! -L "$live" ]; then
@@ -70,6 +76,15 @@ run mkdir -p "$releases"
 run rsync -a --link-dest="$build" \
   --exclude='.*.staging/' --exclude='.*.old/' \
   "$build/" "$snapshot/"
+
+# Lay the site's static files over the build. rsync writes each to a temp
+# file and renames it into place, so files hard-linked to the build are
+# replaced in the snapshot only, never modified.
+if [ -n "$site" ]; then
+  run rsync -rlt --checksum --chmod=D755,F644 \
+    --exclude='.*' --exclude='*.md' --exclude='LICENSE*' --exclude='UNLICENSE' \
+    "$site/" "$snapshot/"
+fi
 
 for map in redirects latest latest-fallback; do
   run httxt2dbm -f SDBM -i "$snapshot/$map.map" -o "$snapshot/$map.map.db"
