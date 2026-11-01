@@ -11,7 +11,7 @@ authors = [{name = "SciJava developers", email = "ctrueden@wisc.edu"}]
 readme = "README.md"
 keywords = ["bom", "pom", "maven", "testing", "validation", "versioning"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",

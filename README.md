@@ -6,20 +6,21 @@
 
 ---
 
-## Status & Trajectory
+## Status
 
-> **Pre-alpha. Not yet suitable for general use.**
->
-> Pombast is under active development and breaking changes are expected.
-> APIs, CLI options, configuration format, and caching behavior may all
-> change without notice until a stable 1.0 release.
->
-> **Intended trajectory:** Pombast is being built as a principled replacement
-> for the [pom-scijava](https://github.com/scijava/pom-scijava) *mega-melt*,
-> the ad-hoc shell-script process that validates managed components before
-> each pom-scijava release. The goal is to make BOM validation reproducible,
-> configurable, and automatable outside of any single repository's CI
-> infrastructure, and usable for any Maven BOM, not just SciJava's.
+> **Beta.** Pombast is usable, but APIs, CLI options, configuration format,
+> and caching behavior may still change before a stable 1.0 release.
+
+Pombast is designed to work with any Maven BOM. But it was built for and is in
+production use with the [SciJava](https://scijava.org/) Bill of Materials,
+[pom-scijava](https://github.com/scijava/pom-scijava).
+Public resources powered by it include:
+
+- **pom-scijava CI** — validates the managed components before each release.
+- **[status.scijava.org](https://status.scijava.org/)** — release and vetting
+  status, CI badges and developer accountability across all managed components.
+- **[javadoc.scijava.org](https://javadoc.scijava.org/)** — cross-linked
+  javadoc for the whole BOM.
 
 ---
 
