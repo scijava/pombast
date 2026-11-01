@@ -22,6 +22,7 @@ server — a ``txt:`` map is searched linearly on each cache miss.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from functools import cmp_to_key
 from typing import TYPE_CHECKING
@@ -69,8 +70,11 @@ def build_site_maps(site_dir: Path) -> SiteMapsResult:
                 or has_pages(site_dir / ga[0] / ga[1] / v)
             )
         ]
-        if releases:
-            latest[ga] = _newest_first(releases)[0]
+        # Prefer real releases over git-hash builds (e.g. JitPack's "9c0918a"),
+        # which Maven ordering can rank above any release by a leading digit.
+        proper = [v for v in releases if not _is_commit_hash(v)]
+        if proper or releases:
+            latest[ga] = _newest_first(proper or releases)[0]
     path = site_dir / LATEST_MAP
     with atomic_writer(path) as f:
         for (g, a), v in sorted(latest.items()):
@@ -142,6 +146,15 @@ def _scan_versions(site_dir: Path) -> dict[tuple[str, str], list[str]]:
                 if (vdir / _MARKER).exists() or (vdir / "redirects.tsv").is_file():
                     found.setdefault((gdir.name, adir.name), []).append(vdir.name)
     return found
+
+
+# A bare abbreviated or full git commit hash, as JitPack publishes versions.
+_COMMIT_HASH = re.compile(r"[0-9a-f]{7,40}")
+
+
+def _is_commit_hash(version: str) -> bool:
+    # All digits is a date-style version (e.g. 20020414), not a hash.
+    return bool(_COMMIT_HASH.fullmatch(version)) and not version.isdigit()
 
 
 def _newest_first(versions: list[str]) -> list[str]:

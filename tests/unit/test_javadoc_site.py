@@ -408,3 +408,24 @@ class TestNamedUnions:
         for bad in ("ome", "../x", "a/b", ".hidden", ""):
             with pytest.raises(ValueError):
                 check_union_name(bad)
+
+
+class TestLatest:
+    def test_real_release_beats_commit_hash(self, tmp_path):
+        for v in ("0.2.0-beta-5", "0.4.0", "9c0918a", "e3510f4"):
+            _flat(tmp_path, f"sc.iview:sciview:{v}")
+        build_site_maps(tmp_path)
+        assert (tmp_path / "latest.map").read_text() == "sc.iview/sciview 0.4.0\n"
+
+    def test_commit_hash_when_no_release(self, tmp_path):
+        _flat(tmp_path, "graphics.scenery:bigvolumeviewer:a6b021d")
+        build_site_maps(tmp_path)
+        assert (tmp_path / "latest.map").read_text() == (
+            "graphics.scenery/bigvolumeviewer a6b021d\n"
+        )
+
+    def test_date_versions_are_releases(self, tmp_path):
+        for v in ("20020414", "20090621"):
+            _flat(tmp_path, f"isorelax:isorelax:{v}")
+        build_site_maps(tmp_path)
+        assert (tmp_path / "latest.map").read_text() == "isorelax/isorelax 20090621\n"
