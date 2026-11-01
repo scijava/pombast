@@ -30,8 +30,8 @@ managed by a BOM. Its major functions are:
 
 - **`pombast melt`** — holistic classpath check across the whole BOM.
 - **`pombast smelt`** — per-component build and test against pinned versions.
-- **`pombast javadoc`** — generate a browsable javadoc site + unioned index
-  from each component's published `-javadoc` JAR.
+- **`pombast javadoc`** — generate a browsable, cross-linked javadoc site +
+  unioned index from each component's published `-javadoc` JAR (or sources).
 - **`pombast status`** — HTML report of each component's release/vetting status.
 - **`pombast badges`** — fetch CI badge status for each component.
 - **`pombast team`** — developer accountability report across components.
@@ -161,11 +161,44 @@ Unpack each component's `-javadoc` classifier JAR into `{output}/{g}/{a}/{v}/`
 and assemble a unioned index for the BOM itself at
 `{output}/{bom-g}/{bom-a}/{bom-v}/`. The union is a single, fast `javadoc -link`
 target: its class URLs 301-redirect to the owning component, so the `javadoc`
-tool fetches one small `element-list` instead of one per dependency.
+tool fetches one small `element-list` instead of one per dependency. Union paths
+are keyed by the class's flat path (`ij/ImagePlus.html`), matching the union's
+flat `element-list`, while redirects target the real, possibly module-nested,
+page (`ij/ij/ImagePlus.html`).
 
 Component javadoc is cached per G:A:V, so composing a multi-version site is a
 matter of invoking the command once per BOM; already-unpacked releases are
-re-used rather than re-extracted.
+re-used rather than re-extracted. [javadoc.scijava.org] is built this way.
+
+**Javadoc from sources.** Where a component publishes no `-javadoc` JAR, or
+only an empty stub (as some projects do to satisfy Maven Central's rules),
+pombast generates its javadoc from the `-sources` JAR instead, with JDK 21's
+`javadoc` run as leniently as it allows (doclint off, source errors ignored),
+the component's resolved dependency JARs on the classpath, and `-linkoffline`
+links to each dependency's javadoc in the tree. Sources with nothing to
+document (e.g. only Kotlin) count as missing, not as errors.
+
+**Named unions.** `[javadoc.unions]` defines unions over subsets of the BOM
+(e.g. `"net.imglib2" = ["net.imglib2:*"]`), each built like the BOM's own union
+at `{output}/{bom-g}/{bom-a}/{bom-v}/{name}/`: a `-link` target and landing page
+per project. A name must contain a `.` or `-`, which no Java package directory
+can, so it never shadows a class path of the enclosing union.
+
+**Site-wide maps.** After every run, pombast regenerates three `key value` maps
+at the root of the tree from everything on disk: `redirects.map` (every union
+path, across all BOM versions, to its component page), `latest.map` (each G:A to
+its newest release, backing a floating `/{g}/{a}/latest/` alias), and
+`latest-fallback.map` (union paths the newest union dropped, to the newest older
+union that has them, so removed classes keep resolving). They are the input
+format of Apache's RewriteMap; convert them with `httxt2dbm` for production.
+
+**Repository load.** A run resolves the full dependency closure of every managed
+component and probes for optional classifiers, so pombast takes care not to
+hammer Maven repositories: requests to each repository are spaced at least
+0.1 s apart, 404s are remembered for 30 days (for good on Maven Central, whose
+releases are immutable), requests identify pombast in their User-Agent, a run
+stops at the first 401/403 instead of misreading a block as missing artifacts,
+and its summary reports how many requests it made per host.
 
 **Crosslinking.** After unpacking, each component's HTML is rewritten so class
 references resolve to the *exact versioned* javadoc of that component's
@@ -218,6 +251,42 @@ bases (flat `package-list`, no modules) stay module-less. See
 The canonical redirect artifact is always `redirects.tsv` (server-agnostic
 `union-path <TAB> component-path`); `--redirect-format` only chooses which
 web-server config is rendered alongside it.
+
+Links are site-relative unless `--url-prefix` is given. Since components are
+cached per G:A:V and never rewritten, pick one style for a tree and keep it.
+
+**Publishing.** `bin/publish-javadoc.sh` publishes a build tree atomically:
+
+```bash
+bin/publish-javadoc.sh [-n] [-k KEEP] [-s SITE] BUILD RELEASES LIVE
+```
+
+It hard-links `BUILD` into a timestamped snapshot under `RELEASES`, optionally
+lays a site's own static files (front page, styles) from `SITE` over it,
+converts the site-wide maps to SDBM, and switches the `LIVE` symlink (the web
+server's document root) to the snapshot in a single rename, keeping the newest
+`KEEP` (default 3). Unchanged files are shared, so a snapshot costs little more
+than its directories; this is safe because pombast never modifies a file in
+place, writing a new one and renaming it over the old. `-n` is a dry run.
+
+With Apache, the maps back rules like these (see [javadoc.scijava.org] for a
+complete, tested setup):
+
+```apache
+RewriteMap javadoc  "dbm=sdbm:/var/www/site/redirects.map.db"
+RewriteMap latest   "dbm=sdbm:/var/www/site/latest.map.db"
+RewriteMap latestfb "dbm=sdbm:/var/www/site/latest-fallback.map.db"
+
+# /{g}/{a}/latest/... floats, so 302.
+RewriteCond ${latestfb:$1} ^(/.+)$
+RewriteRule ^(/[^/]+/[^/]+/latest/.+)$ %1 [R=302,L,NE]
+RewriteCond ${latest:$1/$2} ^(.+)$
+RewriteRule ^/([^/]+)/([^/]+)/latest(?:/(.*))?$ /$1/$2/%1/$3 [R=302,L,NE]
+
+# Union paths -> the owning component's page.
+RewriteCond ${javadoc:$1} ^(/.+)$
+RewriteRule ^(/[^/]+/[^/]+/[^/]+/.+)$ %1 [R=301,L,NE]
+```
 
 ---
 
@@ -277,10 +346,8 @@ output = "../status.scijava.org/team.html"      # team.json is written alongside
 
 [javadoc]
 # Settings for the javadoc command.
-output = "../javadoc.scijava.org"               # javadoc site output directory
-url-prefix = "https://javadoc.scijava.org"      # rewrite legacy javadoc host links to this
+output = "target/pombast/javadoc"               # javadoc site output directory (build tree)
 redirect-format = "rewritemap"                  # or "redirectmatch" for a self-contained .htaccess
-includes = ["org.scijava:*"]
 # JDK (java.*) link handling. The template is formatted with {java} (the Java
 # version); the default below reproduces SciJava's proxied /Java8/ prefixes.
 jdk-api-url-template = "/Java{java}/"
@@ -289,6 +356,10 @@ jdk-api-url-template = "/Java{java}/"
 [javadoc.jdk-api-base-urls]
 j8 = "https://docs.oracle.com/javase/8/docs/api/"
 j21 = "https://docs.oracle.com/en/java/javase/21/docs/api/"
+# Named unions over parts of the BOM: name -> G:A patterns of its members.
+[javadoc.unions]
+"net.imglib2" = ["net.imglib2:*"]
+"bio-formats" = ["ome:*", "org.openmicroscopy:*"]
 ```
 
 If `pombast.toml` exists in the current directory it is loaded automatically.
@@ -386,3 +457,5 @@ Pombast caches two things under `~/.cache/pombast/`:
 ## License
 
 [Unlicense](https://unlicense.org/) — public domain.
+
+[javadoc.scijava.org]: https://github.com/scijava/javadoc.scijava.org
