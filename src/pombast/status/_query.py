@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Iterator
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from pombast.cache._pom_timestamp import PomTimestampCache
 from pombast.core._filter import ComponentFilter
@@ -15,6 +15,8 @@ from pombast.status._entry import StatusEntry
 from pombast.util._time import as_utc
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from pombast.core._component import Component
     from pombast.maven._bom import BomData
     from pombast.maven._rules import RulesXML
@@ -42,7 +44,7 @@ def _parse_ts(value: str) -> datetime:
     if not m:
         raise ValueError(f"Cannot parse timestamp: {value!r}")
     year, month, day, hour, minute, second = (int(g) for g in m.groups())
-    return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+    return datetime(year, month, day, hour, minute, second, tzinfo=UTC)
 
 
 def load_kv_file(path: str) -> dict[str, str]:
@@ -80,15 +82,14 @@ def _infer_project_url(group_id: str, artifact_id: str) -> str:
             return f"https://github.com/bigdataviewer/{a}"
         if a.startswith("labkit"):
             return f"https://github.com/juglab/{a}"
-        if a.endswith("_"):
-            a = a[:-1]
+        a = a.removesuffix("_")
     if g in _GROUP_ORGS:
         return f"https://github.com/{_GROUP_ORGS[g]}/{a}"
     return ""
 
 
 def _ensure_yaml_ext(name: str) -> str:
-    return name if (name.endswith(".yml") or name.endswith(".yaml")) else name + ".yml"
+    return name if name.endswith((".yml", ".yaml")) else name + ".yml"
 
 
 def _make_ci_html(

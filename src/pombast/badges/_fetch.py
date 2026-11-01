@@ -6,7 +6,7 @@ import json
 import re
 import urllib.request
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ _DEFAULT_WORKFLOWS = ("build.yml",)
 
 
 def _has_yaml_ext(name: str) -> bool:
-    return name.endswith(".yml") or name.endswith(".yaml")
+    return name.endswith((".yml", ".yaml"))
 
 
 def _ensure_yaml_ext(name: str) -> str:
@@ -89,7 +89,7 @@ def fetch_badges(
 def write_badges_json(badges: dict[str, dict], path: Path) -> None:
     """Write badges dict to a JSON file."""
     data = {
-        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "repos": badges,
     }
     path.write_text(

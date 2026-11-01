@@ -42,9 +42,10 @@ import logging
 import re
 import threading
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from pombast.javadoc._fs import atomic_write_text
 from pombast.javadoc._unpack import TOPLEVEL_HTML_DOCS, component_javadoc_dir
@@ -177,7 +178,7 @@ UrlOpener = Callable[[str], str]
 
 
 def _default_opener(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310 (http(s) only)
+    with urllib.request.urlopen(url, timeout=30) as resp:
         return resp.read().decode("utf-8", "replace")
 
 
@@ -253,7 +254,7 @@ class JdkModuleResolver:
         for name in ("element-list", "package-list"):
             try:
                 text = self._opener(f"{base}/{name}")
-            except Exception:  # noqa: BLE001 — any fetch failure ⇒ try next source
+            except Exception:
                 continue
             return _parse_module_list(text)
         return {}
@@ -495,11 +496,11 @@ def crosslink_html(
     ``jdk_base`` is the already-resolved JDK API base (``None`` ⇒ leave JDK links
     untouched); ``jdk_modules`` maps JDK package → module for Java 9+ qualification.
     """
-    href_kw = dict(
-        url_prefix=url_prefix,
-        jdk_base=jdk_base,
-        jdk_modules=jdk_modules or {},
-    )
+    href_kw = {
+        "url_prefix": url_prefix,
+        "jdk_base": jdk_base,
+        "jdk_modules": jdk_modules or {},
+    }
     out: list[str] = []
     pos = 0
     anchor_depth = 0

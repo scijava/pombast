@@ -100,6 +100,7 @@ def run_maven(
         text=True,
         env=env,
         timeout=timeout,
+        check=False,
     )
 
     if log_path:

@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 
 def _parse_role_value(value: object, default: str) -> list[str]:

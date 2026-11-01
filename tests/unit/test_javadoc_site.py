@@ -377,10 +377,14 @@ class TestNamedUnions:
         ) in redirects
         fallback = (tmp_path / "latest-fallback.map").read_text().splitlines()
         assert sorted(fallback) == [
-            "/org.scijava/pom-scijava/latest/org.scijava/org/scijava/Gone.html "
-            "/org.scijava/pom-scijava/45.0.0/org.scijava/org/scijava/Gone.html",
-            "/org.scijava/pom-scijava/latest/org/scijava/Gone.html "
-            "/org.scijava/pom-scijava/45.0.0/org/scijava/Gone.html",
+            (
+                "/org.scijava/pom-scijava/latest/org.scijava/org/scijava/Gone.html "
+                "/org.scijava/pom-scijava/45.0.0/org.scijava/org/scijava/Gone.html"
+            ),
+            (
+                "/org.scijava/pom-scijava/latest/org/scijava/Gone.html "
+                "/org.scijava/pom-scijava/45.0.0/org/scijava/Gone.html"
+            ),
         ]
 
     def test_stale_named_unions_removed(self, tmp_path):

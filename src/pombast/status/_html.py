@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from pombast.status._drift import format_duration
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from pombast.maven._bytecode import LadderStep
     from pombast.status._entry import StatusEntry
 

@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from pombast.core._component import Component
 from pombast.core._filter import ComponentFilter

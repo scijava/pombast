@@ -50,13 +50,11 @@ class StatusEntry:
         if self.bom_version == self.latest_version or self.latest_version is None:
             return True
         # Manual vetting counts if it is at least as recent as the last deployment.
-        if (
+        return bool(
             self.vetting_override
             and self.last_updated
             and self.vetting_override >= self.last_updated
-        ):
-            return True
-        return False
+        )
 
     @property
     def release_ok(self) -> bool:

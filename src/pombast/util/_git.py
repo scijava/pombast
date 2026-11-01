@@ -76,6 +76,7 @@ def has_ref(repo: Path, ref: str) -> bool:
         ["git", "ls-remote", f"file://{repo}"],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         return False
@@ -102,6 +103,7 @@ def ls_remote_tags(url: str) -> list[str]:
         ["git", "ls-remote", "--tags", url],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         _log.warning("Failed to list remote tags for %s", url)
@@ -134,6 +136,7 @@ def remote_url(repo: Path) -> str | None:
         capture_output=True,
         text=True,
         cwd=repo,
+        check=False,
     )
     if result.returncode == 0:
         return result.stdout.strip() or None
@@ -166,6 +169,7 @@ def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     )
     if result.returncode != 0:
         _log.error("git command failed: %s\n%s", " ".join(cmd), result.stderr)

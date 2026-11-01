@@ -151,8 +151,7 @@ def _java_version(props: dict[str, str]) -> int | None:
 def _parse_java_version(raw: str) -> int | None:
     """Parse a Java version token: ``"1.8"`` → 8, ``"8"`` → 8, ``"21"`` → 21."""
     token = raw.strip()
-    if token.startswith("1."):
-        token = token[2:]
+    token = token.removeprefix("1.")
     try:
         return int(token.split(".")[0])
     except ValueError:

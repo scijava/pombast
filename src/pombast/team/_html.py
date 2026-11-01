@@ -11,11 +11,12 @@ committed ``team.html`` only changes when the template itself changes, and the
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from pombast.team._workload import DeveloperRow

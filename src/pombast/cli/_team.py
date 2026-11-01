@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import rich_click as click
@@ -306,7 +306,7 @@ def team_cmd(
     console.print(table)
 
     if effective_html:
-        generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
         header_html = effective_header.read_text() if effective_header else ""
         footer_html = effective_footer.read_text() if effective_footer else ""
 

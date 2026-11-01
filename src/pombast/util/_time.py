@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def as_utc(dt: datetime) -> datetime:
@@ -13,5 +13,5 @@ def as_utc(dt: datetime) -> datetime:
     comparisons between them from raising TypeError.
     """
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)

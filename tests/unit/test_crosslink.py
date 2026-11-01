@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pombast.core import Component
 from pombast.javadoc._crosslink import (
     ClassIndex,
@@ -195,7 +197,10 @@ class TestJdkLinks:
 
 
 class TestJdkModuleQualification:
-    _MODULES = {"java.lang": "java.base", "javax.swing": "java.desktop"}
+    _MODULES: ClassVar[dict[str, str]] = {
+        "java.lang": "java.base",
+        "javax.swing": "java.desktop",
+    }
 
     def test_module_prefixed_for_java9plus(self):
         html = '<a href="/Java8/java/lang/String.html">String</a>'
@@ -392,7 +397,9 @@ class TestClassIndexer:
 class TestModularDepLinks:
     _IJ = Component(group="net.imagej", name="ij", version="1.53r")
     # Modular index: real FQCN -> module-doubled on-disk path.
-    _INDEX: ClassIndex = {"ij.plugin.PlugIn": (_IJ, "ij/ij/plugin/PlugIn.html")}
+    _INDEX: ClassVar[ClassIndex] = {
+        "ij.plugin.PlugIn": (_IJ, "ij/ij/plugin/PlugIn.html")
+    }
 
     def test_doubled_legacy_href_resolves_via_suffix_search(self):
         html = '<a href="/ImageJ1/ij/ij/plugin/PlugIn.html">PlugIn</a>'

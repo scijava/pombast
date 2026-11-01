@@ -236,6 +236,7 @@ def _run_javadoc(
             text=True,
             errors="replace",
             timeout=_TIMEOUT_SECONDS,
+            check=False,
         )
     except subprocess.TimeoutExpired as e:
         raise GenerateError(f"javadoc timed out after {_TIMEOUT_SECONDS}s") from e

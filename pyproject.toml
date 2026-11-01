@@ -73,7 +73,13 @@ extend-exclude = ["bin", "build", "dist"]
 
 [tool.ruff.lint]
 extend-select = ["TC", "UP037"]
-extend-ignore = ["E203"]
+extend-ignore = [
+    "E203",
+    # Broad catches are deliberate best-effort fallbacks throughout.
+    "BLE001",
+    "S110",
+    "S112",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]

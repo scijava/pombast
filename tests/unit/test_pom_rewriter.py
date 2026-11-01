@@ -73,11 +73,11 @@ class TestRewriteDependencyVersions:
         assert len(bar) == 2
         # The one in <dependencies> (not in <dependencyManagement>) should be rewritten.
         deps_section = root.find(f"{{{NS}}}dependencies")
-        bar_in_deps = [
+        bar_in_deps = next(
             d
             for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "bar"
-        ][0]
+        )
         assert bar_in_deps.find(f"{{{NS}}}version").text == "2.0.0"
 
     def test_adds_missing_version(self, tmp_path):
@@ -91,11 +91,11 @@ class TestRewriteDependencyVersions:
         assert count == 1
         root = _parse(pom)
         deps_section = root.find(f"{{{NS}}}dependencies")
-        baz = [
+        baz = next(
             d
             for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "baz"
-        ][0]
+        )
         assert baz.find(f"{{{NS}}}version").text == "3.0.0"
 
     def test_skips_deps_not_in_bom(self, tmp_path):
@@ -108,11 +108,11 @@ class TestRewriteDependencyVersions:
 
         root = _parse(pom)
         deps_section = root.find(f"{{{NS}}}dependencies")
-        unknown = [
+        unknown = next(
             d
             for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "not-in-bom"
-        ][0]
+        )
         assert unknown.find(f"{{{NS}}}version").text == "9.9.9"
 
     def test_skips_already_correct_version(self, tmp_path):
@@ -330,9 +330,9 @@ class TestInjectDependencyManagement:
         dm_deps = root.findall(
             f"{{{NS}}}dependencyManagement/{{{NS}}}dependencies/{{{NS}}}dependency"
         )
-        plugin = [d for d in dm_deps if d.find(f"{{{NS}}}artifactId").text == "plugin"][
-            0
-        ]
+        plugin = next(
+            d for d in dm_deps if d.find(f"{{{NS}}}artifactId").text == "plugin"
+        )
         assert plugin.find(f"{{{NS}}}type").text == "maven-plugin"
 
     def test_does_not_rewrite_dep_mgmt_deps_as_direct(self, tmp_path):
@@ -384,11 +384,11 @@ class TestInjectDependencyManagement:
         assert len(dm_deps) == 2
         # Direct deps also rewritten.
         deps_section = root.find(f"{{{NS}}}dependencies")
-        bar = [
+        bar = next(
             d
             for d in deps_section.findall(f"{{{NS}}}dependency")
             if d.find(f"{{{NS}}}artifactId").text == "bar"
-        ][0]
+        )
         assert bar.find(f"{{{NS}}}version").text == "2.0.0"
 
 

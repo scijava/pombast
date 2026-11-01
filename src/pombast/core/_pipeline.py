@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pombast.cache._repo import RepoCache
@@ -99,7 +99,7 @@ class Pipeline:
         """
         report = ValidationReport(
             bom=self.config.bom,
-            start_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
         )
 
         # Prepare output directory.
@@ -136,7 +136,7 @@ class Pipeline:
 
         if self.config.skip_build:
             _log.info("Skip-build mode: stopping after preparation")
-            report.end_time = datetime.now(timezone.utc)
+            report.end_time = datetime.now(UTC)
             return report
 
         # Phase 4 + 5: Resolve sources and build/test each component.
@@ -414,7 +414,7 @@ class Pipeline:
             result.analysis = analysis
             report.results.append(result)
 
-        report.end_time = datetime.now(timezone.utc)
+        report.end_time = datetime.now(UTC)
         return report
 
     def _depends_on_changed(

@@ -36,7 +36,7 @@ class RulesXML:
     def load(cls, source: str | Path) -> RulesXML:
         """Load rules from a file path or HTTP(S) URL."""
         src = str(source)
-        if src.startswith("http://") or src.startswith("https://"):
+        if src.startswith(("http://", "https://")):
             resp = requests.get(src, timeout=30)
             resp.raise_for_status()
             root = ET.fromstring(resp.content)
