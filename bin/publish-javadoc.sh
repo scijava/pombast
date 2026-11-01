@@ -80,6 +80,7 @@ done
 target=$(realpath -m "$snapshot")
 run ln -sfn "$target" "$live.new"
 run mv -T "$live.new" "$live"
+if [ -n "$dry" ]; then echo "Would publish $snapshot (dry run)"; exit 0; fi
 echo "Published $snapshot"
 
 # Prune the oldest snapshots beyond KEEP, sparing whichever one is live.
