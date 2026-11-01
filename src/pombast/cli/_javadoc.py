@@ -135,6 +135,7 @@ def javadoc_cmd(
         force=force,
         jdk_api_url_template=jc.jdk_api_url_template,
         jdk_api_base_urls=jc.jdk_api_base_urls,
+        unions=jc.unions,
     )
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
@@ -217,6 +218,11 @@ def javadoc_cmd(
             f"Union [bold]{report.bom.coordinate}[/bold]: "
             f"{u.package_count} packages, {u.redirect_count} redirects "
             f"from {u.component_count} components."
+        )
+    for name, u in sorted(report.named_unions.items()):
+        console.print(
+            f"  Union [bold]{name}[/bold]: {u.package_count} packages, "
+            f"{u.redirect_count} redirects from {u.component_count} components."
         )
     if report.site_maps is not None:
         m = report.site_maps

@@ -336,3 +336,75 @@ class TestEmptyStubs:
         (stub / _MARKER).write_text("")
         build_site_maps(tmp_path)
         assert (tmp_path / "latest.map").read_text() == "sc.iview/sciview 0.3.0\n"
+
+
+class TestNamedUnions:
+    def test_named_union_paths_and_landing_page(self, tmp_path):
+        comp = _flat(tmp_path)
+        bom = _comp("org.scijava:pom-scijava:45.1.0")
+        build_union(tmp_path, bom, [comp])
+        build_union(tmp_path, bom, [comp], name="org.scijava")
+        out = tmp_path / _BOM / "45.1.0" / "org.scijava"
+        rows = dict(
+            r.split("\t") for r in (out / "redirects.tsv").read_text().splitlines()
+        )
+        assert rows == {
+            "/org.scijava/pom-scijava/45.1.0/org.scijava/org/scijava/Context.html": "/org.scijava/scijava-common/2.99.0/org/scijava/Context.html",
+            "/org.scijava/pom-scijava/45.1.0/org.scijava/org/scijava/package-summary.html": "/org.scijava/scijava-common/2.99.0/org/scijava/package-summary.html",
+        }
+        assert (out / "element-list").read_text() == "org.scijava\n"
+        landing = (out / "index.html").read_text()
+        assert 'href="../../../../org.scijava/scijava-common/2.99.0/"' in landing
+        assert "org.scijava:pom-scijava:45.1.0: org.scijava" in landing
+
+    def test_site_maps_include_named_unions(self, tmp_path):
+        old = _flat(tmp_path, "org.scijava:scijava-common:2.98.0")
+        (
+            tmp_path / "org.scijava/scijava-common/2.98.0/org/scijava/Gone.html"
+        ).write_text("")
+        new = _flat(tmp_path, "org.scijava:scijava-common:2.99.0")
+        for v, comp in (("45.0.0", old), ("45.1.0", new)):
+            bom = _comp(f"org.scijava:pom-scijava:{v}")
+            build_union(tmp_path, bom, [comp])
+            build_union(tmp_path, bom, [comp], name="org.scijava")
+        result = build_site_maps(tmp_path)
+        redirects = (tmp_path / "redirects.map").read_text()
+        # 45.0.0: 3 pages in each of its 2 unions; 45.1.0: 2 in each.
+        assert result.redirect_count == 3 + 3 + 2 + 2
+        assert (
+            "/org.scijava/pom-scijava/45.1.0/org.scijava/org/scijava/Context.html "
+            "/org.scijava/scijava-common/2.99.0/org/scijava/Context.html\n"
+        ) in redirects
+        fallback = (tmp_path / "latest-fallback.map").read_text().splitlines()
+        assert sorted(fallback) == [
+            "/org.scijava/pom-scijava/latest/org.scijava/org/scijava/Gone.html "
+            "/org.scijava/pom-scijava/45.0.0/org.scijava/org/scijava/Gone.html",
+            "/org.scijava/pom-scijava/latest/org/scijava/Gone.html "
+            "/org.scijava/pom-scijava/45.0.0/org/scijava/Gone.html",
+        ]
+
+    def test_stale_named_unions_removed(self, tmp_path):
+        from pombast.javadoc._pipeline import _remove_stale_unions
+
+        comp = _flat(tmp_path)
+        bom = _comp("org.scijava:pom-scijava:45.1.0")
+        build_union(tmp_path, bom, [comp])
+        build_union(tmp_path, bom, [comp], name="org.scijava")
+        build_union(tmp_path, bom, [comp], name="old.group")
+        _remove_stale_unions(tmp_path / _BOM / "45.1.0", {"org.scijava"})
+        assert (tmp_path / _BOM / "45.1.0" / "org.scijava").is_dir()
+        assert not (tmp_path / _BOM / "45.1.0" / "old.group").exists()
+        # The union's own files are not named unions.
+        assert (tmp_path / _BOM / "45.1.0" / "redirects.tsv").is_file()
+
+    def test_union_names_cannot_look_like_packages(self):
+        import pytest
+
+        from pombast.javadoc._union import check_union_name
+
+        for ok in ("net.imagej", "sc.fiji", "bio-formats"):
+            assert check_union_name(ok) == ok
+        # "ome" is a valid package directory (ome.xml), so it would collide.
+        for bad in ("ome", "../x", "a/b", ".hidden", ""):
+            with pytest.raises(ValueError):
+                check_union_name(bad)

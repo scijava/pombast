@@ -8,6 +8,7 @@ unpacked release javadoc rather than redoing the work.
 from __future__ import annotations
 
 import logging
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -50,6 +51,14 @@ ResolveCb = Callable[[Component, bool, int], None]
 PlanCb = Callable[[int], None]
 
 
+def _remove_stale_unions(union_dir: Path, names: set[str]) -> None:
+    """Delete named unions of this BOM version that are no longer configured."""
+    for tsv in union_dir.glob("*/redirects.tsv"):
+        if tsv.parent.name not in names:
+            _log.info("Removing unconfigured union %s", tsv.parent.name)
+            shutil.rmtree(tsv.parent)
+
+
 @contextmanager
 def _pool(workers: int) -> Iterator[ThreadPoolExecutor]:
     """A thread pool that drops its queued tasks if the caller fails.
@@ -86,6 +95,7 @@ class JavadocRunConfig:
     force: bool = False
     jdk_api_url_template: str = "/Java{java}/"
     jdk_api_base_urls: dict[str, str] = field(default_factory=dict)
+    unions: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -96,6 +106,7 @@ class JavadocReport:
     results: list[UnpackResult] = field(default_factory=list)
     crosslinks: list[CrosslinkResult] = field(default_factory=list)
     union: UnionResult | None = None
+    named_unions: dict[str, UnionResult] = field(default_factory=dict)
     site_maps: SiteMapsResult | None = None
 
     def _by(self, status: UnpackStatus) -> list[UnpackResult]:
@@ -283,6 +294,19 @@ class JavadocPipeline:
             components,
             redirect_format=cfg.redirect_format,
         )
+        # ...and its named unions over subsets of the BOM.
+        for name, patterns in sorted(cfg.unions.items()):
+            if not patterns:
+                continue  # an empty include list would match everything
+            members = ComponentFilter(includes=patterns).filter(components)
+            report.named_unions[name] = build_union(
+                site,
+                bom,
+                members,
+                name=name,
+                redirect_format=cfg.redirect_format,
+            )
+        _remove_stale_unions(report.union.union_dir, set(cfg.unions))
 
         # Phase 4: refresh the site-wide maps so they span every BOM version and
         # component on disk, not just this run's.

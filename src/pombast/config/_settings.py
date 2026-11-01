@@ -118,6 +118,9 @@ class JavadocConfig:
     # Explicit per-version JDK API bases (keyed "j8", "j21", …), overriding the
     # template — needed where Oracle's URL structure differs between releases.
     jdk_api_base_urls: dict[str, str] = field(default_factory=dict)
+    # Named unions over subsets of the BOM's components ([javadoc.unions]):
+    # union name (e.g. a groupId) -> G:A patterns of its members.
+    unions: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -230,6 +233,10 @@ class PombastConfig:
                 "jdk-api-url-template", "/Java{java}/"
             ),
             jdk_api_base_urls=dict(javadoc_data.get("jdk-api-base-urls", {})),
+            unions={
+                name: [patterns] if isinstance(patterns, str) else list(patterns)
+                for name, patterns in javadoc_data.get("unions", {}).items()
+            },
         )
 
         return cls(

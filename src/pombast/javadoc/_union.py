@@ -13,6 +13,12 @@ The union directory (``site/{bom.g}/{bom.a}/{bom.v}/``) is a single, reproducibl
   scalable ``rewritemap`` format is rendered site-wide instead, across every
   union in the tree (see :mod:`pombast.javadoc._site`).
 
+A BOM may also have *named* unions over a subset of its components (e.g. all of
+``net.imagej:*``), in a subdirectory of its union:
+``site/{bom.g}/{bom.a}/{bom.v}/{name}/``. Their names must contain a ``.`` or
+``-``, which no Java package path segment can, so a named union never collides
+with a class path of the enclosing union.
+
 Union paths are keyed by the *non-modular* class path (``ij/ImagePlus.html``),
 matching the flat ``element-list`` the union publishes — which is what a
 ``javadoc -link`` consumer (and any legacy link) will request. The redirect
@@ -64,9 +70,25 @@ class UnionResult:
     artifacts: list[Path] = field(default_factory=list)
 
 
-def union_dir(site_dir: Path, bom: Component) -> Path:
-    """Return the BOM union directory: ``site/{g}/{a}/{v}``."""
-    return site_dir / bom.group / bom.name / bom.version
+# A named union's directory name: no path separators, and at least one "." or
+# "-" so it cannot be mistaken for a package directory.
+_UNION_NAME = re.compile(r"^(?=[^.]*[.-])[A-Za-z0-9_][\w.-]*$")
+
+
+def union_dir(site_dir: Path, bom: Component, name: str | None = None) -> Path:
+    """Return the BOM union directory: ``site/{g}/{a}/{v}[/{name}]``."""
+    base = site_dir / bom.group / bom.name / bom.version
+    return base / name if name else base
+
+
+def check_union_name(name: str) -> str:
+    """Validate a named union's name (see the module docstring)."""
+    if not _UNION_NAME.match(name):
+        raise ValueError(
+            f"Invalid union name {name!r}: use letters, digits, '_', '.' and '-', "
+            "including at least one '.' or '-' (e.g. a groupId)"
+        )
+    return name
 
 
 def build_union(
@@ -74,21 +96,27 @@ def build_union(
     bom: Component,
     components: list[Component],
     *,
+    name: str | None = None,
     redirect_format: str = "rewritemap",
 ) -> UnionResult:
     """Assemble the unioned index + redirect layer for ``bom``.
 
-    Only components whose javadoc was actually unpacked (i.e. their directory
-    exists) contribute; missing ones are silently skipped.
+    With ``name``, build that named union of ``components`` (a subset of the
+    BOM) instead of the BOM-wide one. Only components whose javadoc was
+    actually unpacked (i.e. their directory exists) contribute; missing ones
+    are silently skipped.
     """
+    if name is not None:
+        check_union_name(name)
     if redirect_format not in REDIRECT_FORMATS:
         raise ValueError(
             f"Unknown redirect_format {redirect_format!r}; "
             f"expected one of {REDIRECT_FORMATS}"
         )
 
-    out = union_dir(site_dir, bom)
+    out = union_dir(site_dir, bom, name)
     out.mkdir(parents=True, exist_ok=True)
+    prefix = "/" + out.relative_to(site_dir).as_posix()
 
     packages: set[str] = set()
     # union_path -> component_path. A path two components share (e.g. the
@@ -103,7 +131,7 @@ def build_union(
             continue
         contributing.append(comp)
         packages.update(_read_packages(cdir))
-        for u, c in _component_redirects(cdir, bom, comp):
+        for u, c in _component_redirects(cdir, prefix, comp):
             redirects.setdefault(u, c)
 
     result = UnionResult(
@@ -115,8 +143,8 @@ def build_union(
 
     # element-list and package-list share the same (package-per-line) format.
     index_body = "".join(f"{pkg}\n" for pkg in sorted(packages))
-    for name in ("element-list", "package-list"):
-        path = out / name
+    for index_name in ("element-list", "package-list"):
+        path = out / index_name
         atomic_write_text(path, index_body)
         result.artifacts.append(path)
 
@@ -127,7 +155,7 @@ def build_union(
     result.artifacts.append(tsv)
 
     landing = out / "index.html"
-    atomic_write_text(landing, _landing_page(bom, contributing))
+    atomic_write_text(landing, _landing_page(bom, contributing, name))
     result.artifacts.append(landing)
 
     if redirect_format == "redirectmatch":
@@ -140,7 +168,7 @@ def build_union(
 
     _log.info(
         "Union %s: %d packages, %d redirects from %d components",
-        bom.coordinate,
+        f"{bom.coordinate} {name}" if name else bom.coordinate,
         result.package_count,
         result.redirect_count,
         result.component_count,
@@ -170,7 +198,7 @@ def _read_packages(cdir: Path) -> set[str]:
 
 
 def _component_redirects(
-    cdir: Path, bom: Component, comp: Component
+    cdir: Path, union_prefix: str, comp: Component
 ) -> list[tuple[str, str]]:
     """Yield (union_path, component_path) for each class/package page.
 
@@ -179,7 +207,6 @@ def _component_redirects(
     index/overview documents, module summaries, the split index — are skipped,
     since each component has its own and they would collide in the union.
     """
-    bom_prefix = f"/{bom.group}/{bom.name}/{bom.version}"
     comp_prefix = f"/{comp.group}/{comp.name}/{comp.version}"
     modules = _module_names(cdir)
     out: list[tuple[str, str]] = []
@@ -196,18 +223,21 @@ def _component_redirects(
             parts[0] in TOPLEVEL_HTML_DOCS or parts[0].startswith("module-")
         ):
             continue
-        out.append((f"{bom_prefix}/{'/'.join(parts)}", f"{comp_prefix}/{rel}"))
+        out.append((f"{union_prefix}/{'/'.join(parts)}", f"{comp_prefix}/{rel}"))
     return out
 
 
-def _landing_page(bom: Component, components: list[Component]) -> str:
+def _landing_page(
+    bom: Component, components: list[Component], name: str | None = None
+) -> str:
     """Render the union's ``index.html``: links to each contributing component."""
+    up = "../" * (4 if name else 3)
     items = "".join(
-        f'<li><a href="../../../{html.escape(c.group)}/{html.escape(c.name)}/'
+        f'<li><a href="{up}{html.escape(c.group)}/{html.escape(c.name)}/'
         f'{html.escape(c.version)}/">{html.escape(c.coordinate)}</a></li>\n'
         for c in sorted(components, key=lambda c: (c.group, c.name))
     )
-    title = html.escape(bom.coordinate)
+    title = html.escape(f"{bom.coordinate}: {name}" if name else bom.coordinate)
     return (
         "<!DOCTYPE html>\n"
         '<html lang="en">\n<head>\n<meta charset="utf-8">\n'

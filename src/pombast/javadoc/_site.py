@@ -3,9 +3,9 @@
 Each run builds one BOM union, but the web server needs a single view of the
 whole site, so after every run these maps are regenerated from what is on disk:
 
-* ``redirects.map`` — every union's ``redirects.tsv`` concatenated: a versioned
-  union path → owning component path. Keys carry the BOM version, so unions of
-  different versions never collide.
+* ``redirects.map`` — every union's ``redirects.tsv`` concatenated (named
+  unions included): a versioned union path → owning component path. Keys carry
+  the BOM version, so unions of different versions never collide.
 * ``latest.map`` — ``{g}/{a}`` → newest release version present in the tree, for
   every component and BOM. Backs the floating ``/{g}/{a}/latest/…`` alias.
   SNAPSHOT versions are never "latest".
@@ -92,9 +92,10 @@ def build_site_maps(site_dir: Path) -> SiteMapsResult:
     with atomic_writer(path) as f:
         for (g, a), vs in sorted(unions.items()):
             for v in vs:
-                for u, c in _read_tsv(site_dir / g / a / v / "redirects.tsv"):
-                    f.write(f"{u} {c}\n")
-                    result.redirect_count += 1
+                for tsv in _union_tsvs(site_dir / g / a / v):
+                    for u, c in _read_tsv(tsv):
+                        f.write(f"{u} {c}\n")
+                        result.redirect_count += 1
     result.artifacts.append(path)
 
     # latest-fallback.map: paths the latest union dropped, newest older version wins.
@@ -155,11 +156,18 @@ def _read_tsv(tsv: Path):
                 yield u, c
 
 
+def _union_tsvs(vdir: Path) -> list[Path]:
+    """A BOM version's redirect tables: its union's, then its named unions'."""
+    return [vdir / "redirects.tsv", *sorted(vdir.glob("*/redirects.tsv"))]
+
+
 def _suffixes(site_dir: Path, g: str, a: str, v: str) -> set[str]:
-    """Union paths of one BOM version, with the ``/{g}/{a}/{v}/`` prefix removed."""
+    """Union paths of one BOM version (named unions included), with the
+    ``/{g}/{a}/{v}/`` prefix removed."""
     prefix = f"/{g}/{a}/{v}/"
     return {
         u[len(prefix) :]
-        for u, _ in _read_tsv(site_dir / g / a / v / "redirects.tsv")
+        for tsv in _union_tsvs(site_dir / g / a / v)
+        for u, _ in _read_tsv(tsv)
         if u.startswith(prefix)
     }
