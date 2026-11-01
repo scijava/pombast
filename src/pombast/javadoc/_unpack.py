@@ -119,7 +119,9 @@ def unpack_component(
     javadoc_dir = component_javadoc_dir(site_dir, comp)
     marker = javadoc_dir / _MARKER
 
-    if marker.exists() and not force:
+    # A marked dir without pages is an empty stub unpacked before stubs were
+    # recognized; re-examine it so its javadoc can be generated instead.
+    if marker.exists() and not force and has_pages(javadoc_dir):
         _log.debug("Cached javadoc for %s", comp.coordinate)
         return UnpackResult(comp, UnpackStatus.CACHED, javadoc_dir)
 
@@ -136,6 +138,14 @@ def unpack_component(
     except Exception as e:  # jgo raises RuntimeError when it cannot resolve
         _log.info("No javadoc artifact for %s (%s)", comp.coordinate, e)
         return UnpackResult(comp, UnpackStatus.MISSING, error=str(e))
+
+    if not _has_html(jar):
+        # Some projects publish an empty stub -javadoc JAR (only to satisfy
+        # Maven Central's rules); report it missing so the sources are used.
+        if javadoc_dir.exists():
+            shutil.rmtree(javadoc_dir)
+        _log.info("Empty javadoc JAR for %s", comp.coordinate)
+        return UnpackResult(comp, UnpackStatus.MISSING, error="javadoc JAR has no HTML")
 
     # Unpack into a sibling staging dir and swap it into place only once
     # complete, so a (possibly hard-linked, published) existing dir is never
@@ -155,6 +165,22 @@ def unpack_component(
 
     _log.info("Unpacked javadoc for %s", comp.coordinate)
     return UnpackResult(comp, UnpackStatus.UNPACKED, javadoc_dir)
+
+
+def has_pages(javadoc_dir: Path) -> bool:
+    """Whether a javadoc dir has any HTML page (some nest theirs in a subdir)."""
+    if (javadoc_dir / "index.html").exists():
+        return True
+    return next(javadoc_dir.rglob("*.html"), None) is not None
+
+
+def _has_html(jar: Path) -> bool:
+    """Whether the JAR contains any HTML page (i.e. is not an empty stub)."""
+    try:
+        with ZipFile(jar) as z:
+            return any(n.endswith(".html") for n in z.namelist())
+    except (BadZipFile, OSError):
+        return True  # let extraction report the problem
 
 
 def _extract(jar: Path, dest: Path) -> None:

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 from jgo.maven import compare_versions
 
 from pombast.javadoc._fs import atomic_writer
-from pombast.javadoc._unpack import _MARKER
+from pombast.javadoc._unpack import _MARKER, has_pages
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -59,7 +59,16 @@ def build_site_maps(site_dir: Path) -> SiteMapsResult:
     # latest.map: g/a -> newest release.
     latest: dict[tuple[str, str], str] = {}
     for ga, vs in versions.items():
-        releases = [v for v in vs if not v.endswith("-SNAPSHOT")]
+        # Only versions with pages to show: never point "latest" at an empty dir.
+        releases = [
+            v
+            for v in vs
+            if not v.endswith("-SNAPSHOT")
+            and (
+                (site_dir / ga[0] / ga[1] / v / "redirects.tsv").is_file()
+                or has_pages(site_dir / ga[0] / ga[1] / v)
+            )
+        ]
         if releases:
             latest[ga] = _newest_first(releases)[0]
     path = site_dir / LATEST_MAP

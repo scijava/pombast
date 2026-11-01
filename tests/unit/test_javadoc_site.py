@@ -303,3 +303,36 @@ class TestSnapshotRounding:
     def test_no_releases_drops_it(self, tmp_path, monkeypatch):
         ctx = self._ctx(tmp_path, monkeypatch, ["0.2.1-SNAPSHOT"])
         assert self._round(ctx, "0.2.1-SNAPSHOT") is None
+
+
+class TestEmptyStubs:
+    def test_stub_jar_is_detected(self, tmp_path):
+        from zipfile import ZipFile
+
+        from pombast.javadoc._unpack import _has_html
+
+        stub = tmp_path / "stub-javadoc.jar"
+        with ZipFile(stub, "w") as z:
+            z.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+        real = tmp_path / "real-javadoc.jar"
+        with ZipFile(real, "w") as z:
+            z.writestr("docs/api/index.html", "<html></html>")
+        assert not _has_html(stub)
+        assert _has_html(real)
+
+    def test_pages_found_in_subdir(self, tmp_path):
+        from pombast.javadoc._unpack import has_pages
+
+        (tmp_path / "META-INF").mkdir()
+        assert not has_pages(tmp_path)
+        (tmp_path / "apidocs").mkdir()
+        (tmp_path / "apidocs/index.html").write_text("")
+        assert has_pages(tmp_path)
+
+    def test_latest_skips_versions_without_pages(self, tmp_path):
+        _flat(tmp_path, "sc.iview:sciview:0.3.0")
+        stub = tmp_path / "sc.iview/sciview/0.4.0"
+        stub.mkdir()
+        (stub / _MARKER).write_text("")
+        build_site_maps(tmp_path)
+        assert (tmp_path / "latest.map").read_text() == "sc.iview/sciview 0.3.0\n"
