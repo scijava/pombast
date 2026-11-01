@@ -16,6 +16,26 @@ validate(bom, **kwargs) -> ValidationReport
     Validate all components in a BOM, returning a detailed report.
 """
 
-__version__ = "0.1.0.dev0"
+
+def _get_version() -> str:
+    """Get the pombast version from package metadata."""
+    try:
+        from importlib.metadata import version
+
+        return version("pombast")
+    except Exception:
+        # Note: Fall back to reading pyproject.toml, e.g. in a bare source tree.
+        try:
+            import tomllib
+            from pathlib import Path
+
+            pyproject = Path(__file__).parent.parent.parent / "pyproject.toml"
+            with open(pyproject, "rb") as f:
+                return tomllib.load(f)["project"]["version"]
+        except Exception:
+            return "unknown"
+
+
+__version__ = _get_version()
 
 __all__ = ("__version__",)
