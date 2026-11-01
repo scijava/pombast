@@ -66,7 +66,8 @@ for map in redirects latest latest-fallback; do
   [ "$longest" -lt 1000 ] || die "$map.map has a $longest-byte line, too long for SDBM"
 done
 
-stamp=$(date +%Y%m%d-%H%M%S)
+# UTC, so names sort in time order even across a daylight saving change.
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
 snapshot=$releases/$stamp
 [ -e "$snapshot" ] && die "$snapshot already exists"
 
@@ -100,8 +101,9 @@ echo "Published $snapshot"
 
 # Prune the oldest snapshots beyond KEEP, sparing whichever one is live.
 current=$( [ -L "$live" ] && realpath "$live" || true)
+# (Snapshots named before UTC stamps were adopted look like 20261101-012917.)
 mapfile -t snapshots < <(find "$releases" -mindepth 1 -maxdepth 1 -type d \
-  -name '[0-9]*-[0-9]*' | sort -r)
+  \( -name '[0-9]*T[0-9]*Z' -o -name '[0-9]*-[0-9]*' \) | sort -r)
 for old in "${snapshots[@]:$keep}"; do
   [ "$(realpath "$old")" = "$current" ] && continue
   run rm -rf -- "$old"
