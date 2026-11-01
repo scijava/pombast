@@ -243,7 +243,7 @@ class TestParseModuleList:
 
 
 class TestJdkModuleResolver:
-    def test_fetches_from_proxy_and_caches(self):
+    def test_fetches_from_proxy_and_caches(self) -> None:
         calls: list[str] = []
 
         def opener(url: str) -> str:
@@ -274,7 +274,7 @@ class TestJdkModuleResolver:
         r = JdkModuleResolver(url_prefix="", opener=opener)
         assert r.modules(21) == {"java.lang": "java.base"}
 
-    def test_explicit_base_url_wins(self):
+    def test_explicit_base_url_wins(self) -> None:
         seen: list[str] = []
 
         def opener(url: str) -> str:
