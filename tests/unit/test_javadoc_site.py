@@ -433,3 +433,31 @@ class TestLatest:
             _flat(tmp_path, f"isorelax:isorelax:{v}")
         build_site_maps(tmp_path)
         assert (tmp_path / "latest.map").read_text() == "isorelax/isorelax 20090621\n"
+
+
+class TestClassifiedOnly:
+    def test_ga_managed_only_with_classifier(self, tmp_path):
+        from pombast.maven._bom import load_bom
+
+        def dep(a, classifier=""):
+            c = f"<classifier>{classifier}</classifier>" if classifier else ""
+            return (
+                f"<dependency><groupId>org.example</groupId><artifactId>{a}"
+                f"</artifactId><version>1.0</version>{c}</dependency>"
+            )
+
+        (tmp_path / "pom.xml").write_text(
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            "<modelVersion>4.0.0</modelVersion><groupId>org.example</groupId>"
+            "<artifactId>bom</artifactId><version>1</version><packaging>pom</packaging>"
+            "<dependencyManagement><dependencies>"
+            + dep("plain")
+            + dep("both")
+            + dep("both", "natives-linux")
+            + dep("fx", "linux")
+            + "</dependencies></dependencyManagement></project>"
+        )
+        default = {c.name for c in load_bom(str(tmp_path)).components}
+        assert default == {"plain", "both"}
+        javadoc = load_bom(str(tmp_path), classified_only=True).components
+        assert sorted(c.name for c in javadoc) == ["both", "fx", "plain"]

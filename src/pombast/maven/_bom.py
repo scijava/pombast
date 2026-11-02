@@ -45,6 +45,7 @@ def load_bom(
     bom: str,
     *,
     repositories: dict[str, str] | None = None,
+    classified_only: bool = False,
 ) -> BomData:
     """Load all managed dependencies from a Maven BOM.
 
@@ -52,6 +53,10 @@ def load_bom(
         bom: A G:A:V coordinate (e.g., "org.scijava:pom-scijava:37.0.0")
             or a path to a local directory containing a pom.xml.
         repositories: Additional remote Maven repositories (name → URL).
+        classified_only: Also include a G:A the BOM manages only with a
+            classifier (e.g. JavaFX's platform-specific artifacts), as its
+            primary artifact. Otherwise such G:As are skipped, along with every
+            other classified entry.
 
     Returns:
         BomData with components, the BOM's dep_mgmt dict, and MavenContext.
@@ -120,6 +125,28 @@ def load_bom(
                 primary_type=type_pkg,
             )
         )
+
+    if classified_only:
+        for (group_id, artifact_id, classifier, type_pkg), dep in sorted(
+            model.dep_mgmt.items()
+        ):
+            ga = f"{group_id}:{artifact_id}"
+            if (
+                not classifier
+                or ga in seen
+                or type_pkg not in ("jar", "bundle", "maven-plugin")
+                or not dep.version
+            ):
+                continue
+            seen.add(ga)
+            components.append(
+                Component(
+                    group=group_id,
+                    name=artifact_id,
+                    version=dep.version,
+                    primary_type=type_pkg,
+                )
+            )
 
     _log.info("Extracted %d components from BOM", len(components))
     return BomData(

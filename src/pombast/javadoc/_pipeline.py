@@ -160,7 +160,9 @@ class JavadocPipeline:
         repos = dict(cfg.repositories)
         repos.setdefault("central", "https://repo1.maven.org/maven2")
 
-        bom_data = load_bom(cfg.bom, repositories=repos)
+        # Javadoc belongs to a G:A:V whatever its classifiers, so a G:A the BOM
+        # manages only with one (e.g. JavaFX's platform JARs) is included too.
+        bom_data = load_bom(cfg.bom, repositories=repos, classified_only=True)
         bom = _bom_component(cfg.bom, bom_data.pom_path)
         ctx = bom_data.ctx
 
