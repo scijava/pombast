@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from pombast.core._component import Component
+
 
 def _parse_role_value(value: object, default: str) -> list[str]:
     """Coerce a TOML role value (str or list[str]) to list[str]."""
@@ -116,6 +118,10 @@ class JavadocConfig:
     # Named unions over subsets of the BOM's components ([javadoc.unions]):
     # union name (e.g. a groupId) -> G:A patterns of its members.
     unions: dict[str, list[str]] = field(default_factory=dict)
+    # G:A:V coordinates of javadoc to publish beyond the BOM's managed
+    # components (e.g. other major versions of a managed library). They are
+    # unpacked and crosslinked like any component, but belong to no union.
+    extras: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -232,6 +238,9 @@ class PombastConfig:
                 name: [patterns] if isinstance(patterns, str) else list(patterns)
                 for name, patterns in javadoc_data.get("unions", {}).items()
             },
+            extras=[
+                Component.parse(c).coordinate for c in javadoc_data.get("extras", [])
+            ],
         )
 
         return cls(

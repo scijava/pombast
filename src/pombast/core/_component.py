@@ -36,6 +36,18 @@ class Component:
     # against the BOM in the success cache.
     primary_type: str = "jar"
 
+    @classmethod
+    def parse(cls, coordinate: str) -> Component:
+        """Parse an exact ``G:A:V`` coordinate string.
+
+        Raises ValueError unless it has exactly three non-empty parts.
+        """
+        parts = coordinate.strip().split(":")
+        if len(parts) != 3 or not all(parts):
+            raise ValueError(f"Expected a G:A:V coordinate, not {coordinate!r}")
+        g, a, v = parts
+        return cls(group=g, name=a, version=v)
+
     @property
     def coordinate(self) -> str:
         """Return G:A:V coordinate string."""

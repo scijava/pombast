@@ -1,5 +1,7 @@
 """Tests for core component types."""
 
+import pytest
+
 from pombast.core import BuildResult, BuildStatus, Component, ValidationReport
 
 
@@ -7,6 +9,18 @@ class TestComponent:
     def test_coordinate(self):
         c = Component(group="org.scijava", name="scijava-common", version="2.99.0")
         assert c.coordinate == "org.scijava:scijava-common:2.99.0"
+
+    def test_parse(self):
+        c = Component.parse("org.openjfx:javafx-base:25.0.5")
+        assert c == Component(group="org.openjfx", name="javafx-base", version="25.0.5")
+
+    @pytest.mark.parametrize(
+        "coordinate",
+        ["org.openjfx:javafx-base", "org.openjfx:javafx-base:25:linux", "g::1", ""],
+    )
+    def test_parse_rejects_non_gav(self, coordinate):
+        with pytest.raises(ValueError, match="G:A:V"):
+            Component.parse(coordinate)
 
     def test_ga(self):
         c = Component(group="org.scijava", name="scijava-common", version="2.99.0")

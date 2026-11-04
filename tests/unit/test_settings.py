@@ -191,6 +191,25 @@ class TestJavadocConfig:
         assert jc.workers == 8
         assert jc.jdk_api_url_template == "/Java{java}/"
         assert jc.jdk_api_base_urls == {}
+        assert jc.extras == []
+
+    def test_load_extras(self, tmp_path):
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text("""\
+[javadoc]
+extras = ["org.openjfx:javafx-base:17.0.21", " org.openjfx:javafx-base:25.0.5"]
+""")
+        jc = PombastConfig.load(toml_path).javadoc
+        assert jc.extras == [
+            "org.openjfx:javafx-base:17.0.21",
+            "org.openjfx:javafx-base:25.0.5",
+        ]
+
+    def test_load_extras_rejects_non_gav(self, tmp_path):
+        toml_path = tmp_path / "pombast.toml"
+        toml_path.write_text('[javadoc]\nextras = ["org.openjfx:javafx-base"]\n')
+        with pytest.raises(ValueError, match="G:A:V"):
+            PombastConfig.load(toml_path)
 
     def test_load_jdk_settings(self, tmp_path):
         toml_path = tmp_path / "pombast.toml"

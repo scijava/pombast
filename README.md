@@ -185,6 +185,12 @@ at `{output}/{bom-g}/{bom-a}/{bom-v}/{name}/`: a `-link` target and landing page
 per project. A name must contain a `.` or `-`, which no Java package directory
 can, so it never shadows a class path of the enclosing union.
 
+**Extras.** `[javadoc] extras` (or `--extra`, repeatable) lists exact `G:A:V`
+coordinates to publish beyond the BOM's managed components, such as other major
+versions of a library the BOM manages. Each is unpacked, generated and
+crosslinked like a managed component, with its own dependency closure, at
+`{output}/{g}/{a}/{v}/`, but joins no union, so nothing in the BOM links to it.
+
 **Site-wide maps.** After every run, pombast regenerates three `key value` maps
 at the root of the tree from everything on disk: `redirects.map` (every union
 path, across all BOM versions, to its component page), `latest.map` (each G:A to
@@ -240,6 +246,7 @@ bases (flat `package-list`, no modules) stay module-less. See
 |---|---|
 | `-i, --include G:A` | Include only matching components (repeatable, wildcards OK) |
 | `-e, --exclude G:A` | Exclude matching components (repeatable, wildcards OK) |
+| `-x, --extra G:A:V` | Also publish this component, outside any union (repeatable) |
 | `-r, --repository URL` | Additional Maven repository (repeatable) |
 | `--config PATH` | Path to `pombast.toml` config file |
 | `-o, --output PATH` | Javadoc site output directory (or `[javadoc] output`) |
@@ -352,6 +359,8 @@ redirect-format = "rewritemap"                  # or "redirectmatch" for a self-
 # JDK (java.*) link handling. The template is formatted with {java} (the Java
 # version); the default below reproduces SciJava's proxied /Java8/ prefixes.
 jdk-api-url-template = "/Java{java}/"
+# Javadoc to publish beyond the BOM's components (exact G:A:V; no union).
+extras = ["org.openjfx:javafx-base:25.0.5"]
 # Explicit per-version bases override the template (Oracle changes its URL
 # structure between releases). Keyed "j8", "j21", …:
 [javadoc.jdk-api-base-urls]

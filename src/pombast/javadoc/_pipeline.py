@@ -97,6 +97,7 @@ class JavadocRunConfig:
     jdk_api_url_template: str = "/Java{java}/"
     jdk_api_base_urls: dict[str, str] = field(default_factory=dict)
     unions: dict[str, list[str]] = field(default_factory=dict)
+    extras: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -174,6 +175,17 @@ class JavadocPipeline:
             len(bom_data.components),
         )
 
+        # Extras are published beside the BOM's components, but are not part
+        # of the BOM, so they join no union.
+        managed = {c.coordinate for c in components}
+        extras = [
+            e
+            for e in dict.fromkeys(Component.parse(x) for x in cfg.extras)
+            if e.coordinate not in managed
+        ]
+        if extras:
+            _log.info("Also generating javadoc for %d extras", len(extras))
+
         site = cfg.output_dir
         site.mkdir(parents=True, exist_ok=True)
 
@@ -191,8 +203,9 @@ class JavadocPipeline:
         # dangling at the dependency frontier). Refs to versions with no -javadoc JAR
         # still stay unlinked; the index simply skips absent dirs.
         closures: dict[str, Closure] = {}
-        unpack_targets: dict[str, Component] = {c.coordinate: c for c in components}
-        top_total = len(components)
+        top_targets = components + extras
+        unpack_targets: dict[str, Component] = {c.coordinate: c for c in top_targets}
+        top_total = len(top_targets)
 
         def _resolve_wave(targets: list[Component], *, top_level: bool) -> None:
             with _pool(workers) as pool:
@@ -206,7 +219,7 @@ class JavadocPipeline:
                     if on_resolve is not None:
                         on_resolve(comp, top_level, top_total)
 
-        pending = list(components)
+        pending = list(top_targets)
         top_level = True
         while pending:
             _resolve_wave(pending, top_level=top_level)

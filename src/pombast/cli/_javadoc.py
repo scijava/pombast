@@ -16,6 +16,7 @@ from rich.progress import (
 )
 
 from pombast.config._settings import PombastConfig, parse_repo_spec
+from pombast.core._component import Component
 from pombast.javadoc._pipeline import JavadocPipeline, JavadocRunConfig
 from pombast.javadoc._union import REDIRECT_FORMATS
 from pombast.util._console import make_console
@@ -36,6 +37,12 @@ console = make_console()
     "--exclude",
     multiple=True,
     help="G:A pattern to exclude (repeatable, wildcards OK).",
+)
+@click.option(
+    "-x",
+    "--extra",
+    multiple=True,
+    help="G:A:V to publish beyond the BOM's components (repeatable).",
 )
 @click.option(
     "-r",
@@ -85,6 +92,7 @@ def javadoc_cmd(
     bom: str,
     include: tuple[str, ...],
     exclude: tuple[str, ...],
+    extra: tuple[str, ...],
     repository: tuple[str, ...],
     config: Path | None,
     output_dir: Path | None,
@@ -101,6 +109,9 @@ def javadoc_cmd(
     at ``{output}/{bom-g}/{bom-a}/{bom-v}/`` — a single, fast ``javadoc -link``
     target whose class URLs 301-redirect to the owning component.
 
+    Extras (``--extra``, or ``[javadoc] extras``) are published the same way
+    at their own ``{g}/{a}/{v}/``, but belong to no union.
+
     Compose across BOM versions by invoking once per BOM; component javadoc is
     cached per G:A:V and re-used across runs.
 
@@ -110,6 +121,12 @@ def javadoc_cmd(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    for coordinate in extra:
+        try:
+            Component.parse(coordinate)
+        except ValueError as e:
+            raise click.BadParameter(str(e), param_hint="--extra") from e
 
     pombast_config = PombastConfig.load_default(config)
     jc = pombast_config.javadoc
@@ -136,6 +153,7 @@ def javadoc_cmd(
         jdk_api_url_template=jc.jdk_api_url_template,
         jdk_api_base_urls=jc.jdk_api_base_urls,
         unions=jc.unions,
+        extras=list(extra) or jc.extras,
     )
 
     console.print(f"[bold]BOM:[/bold] [cyan]{bom}[/cyan]")
